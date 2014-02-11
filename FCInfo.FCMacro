@@ -1,0 +1,2196 @@
+# -*- coding: utf-8 -*-
+"""
+***************************************************************************
+*   Copyright (c) 2013 <mario52[at]users.sourceforge.net>                 *
+*                                                                         *
+*   This file is a supplement to the FreeCAD CAx development system.      *
+*                                                                         *
+*   This program is free software; you can redistribute it and/or modify  *
+*   it under the terms of the GNU Lesser General Public License (LGPL)    *
+*   as published by the Free Software Foundation; either version 2 of     *
+*   the License, or (at your option) any later version.                   *
+*   for detail see the LICENCE text file.                                 *
+*                                                                         *
+*   This software is distributed in the hope that it will be useful,      *
+*   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+*   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+*   GNU Library General Public License for more details.                  *
+*                                                                         *
+*   You should have received a copy of the GNU Library General Public     *
+*   License along with this macro; if not, write to the Free Software     *
+*   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  *
+*   USA                                                                   *
+***************************************************************************
+*           WARNING! All changes in this file will be lost and            *  
+*                  may cause malfunction of the program                   *
+***************************************************************************
+"""
+# FCInfo.FCMacro
+#       https://fr.wikipedia.org/wiki/Kilogramme
+# Select an object or launch the application and select an object, and a series of information appear.
+# Calculations FreeCAD unit, which is the mm on each new selection, the unit of length-based his return still on mm and decimal degrees angle.
+# Always leave by the "Exit" button if it exits the program without going through the button "Exit" the program remains in memory and continues to run.
+# Should leave FreeCAD to erase memory.
+# Only the first 200 objects are visible in the table if there are more than 200 items in the object a signal will be displayed by '(!+ 200),
+# The complete list of data is visible in the backup file
+#
+#
+# 04_02 10/11
+# FreeCAD Ver 0.13 1828
+# python 2.6 # Windows Vista SP2
+
+__title__   = "FCInfo"
+__author__  = "Mario52"
+__url__     = "http://www.freecadweb.org/wiki/index.php?title=Main_Page"
+__version__ = "01.08.b"
+__date__    = "10/11/2013"
+
+import Draft, Part, FreeCAD, math, PartGui, FreeCADGui, PyQt4
+import Part
+from math import sqrt, pi, sin, cos, asin, degrees, radians
+from FreeCAD import Base
+from PyQt4 import QtGui ,QtCore
+from PyQt4.QtGui import QComboBox
+from PyQt4.QtGui import QMessageBox
+from PyQt4.QtGui import QTableWidget, QApplication
+
+from PyQt4.QtGui import *
+from PyQt4.QtCore import *
+
+import csv
+
+try:
+    _fromUtf8 = QtCore.QString.fromUtf8
+except AttributeError:
+    def _fromUtf8(s):
+        return s
+
+try:
+    _encoding = QtGui.QApplication.UnicodeUTF8
+    def _translate(context, text, disambig):
+        return QtGui.QApplication.translate(context, text, disambig, _encoding)
+except AttributeError:
+    def _translate(context, text, disambig):
+        return QtGui.QApplication.translate(context, text, disambig)
+
+from math import sqrt, pi, sin, cos, asin, acos, atan, atan2, degrees
+
+def errorDialog(msg):
+    diag = QtGui.QMessageBox(QtGui.QMessageBox.Critical,"Error Message",msg )
+    diag.setWindowFlags(PyQt4.QtCore.Qt.WindowStaysOnTopHint) # This function updates the window forward
+#    diag.setWindowModality(QtCore.Qt.ApplicationModal)       # the function has been disabled to promote "WindowStaysOnTopHint"
+    diag.exec_()
+
+def iso8859(encoder):
+    return unicode(encoder).encode('iso-8859-1')
+
+def utf8(unio):
+    return unicode(unio).encode('UTF8')
+
+def heure():
+    return QtCore.QTime().currentTime().toString('hh:mm:ss')
+def dateEu():
+    return QtCore.QDate().currentDate().toString('dd/MM/yyyy')       # forme euro
+def dateUs():
+    return QtCore.QDate().currentDate().toString('MM/dd/yyyy')       # forme us
+def dateUk():
+    return QtCore.QDate().currentDate().toString('yyyy/MM/dd')       # forme Uk
+def dateComp():
+    return QtCore.QDate().currentDate().toString('dddd d MMMM yyyy') # Return "dimanche 20 Juillet 2013"
+
+def degMinSec(angle0):
+    # give the angle in degrees
+    global uniteAs
+    try:
+        deg = int(angle0)
+        min = int((angle0 - deg)*60)
+        sec = round (((((angle0 - deg)*60)-min)*60),6)
+        angle = str(deg)+u"° "+str(min)+u"' "+str(sec)+u"''"
+        uniteAs = ""
+        return angle
+    except:
+        return 0
+
+def angleGrade(angle0):
+    # give the angle in degrees
+    global uniteAs
+    try:
+        angle = float(angle0)
+        angle = (200 * angle) / 180
+        uniteAs = " gon"
+        return angle
+    except:
+        return 0
+
+def angle2(vecteur_x1,vecteur_y1,vecteur_x2,vecteur_y2,mode):
+# calculation of the slope of a line using two vectors
+# If 'mode' = 1 then display in degrees or radians
+    global uniteAs
+    try:
+        deltaX = vecteur_x2 - vecteur_x1
+        deltaY = vecteur_y2 - vecteur_y1
+        if mode ==1:
+            angle = degrees(atan2(float(deltaY),float(deltaX))) # degrès
+            uniteAs = u"°"
+        else:
+            angle = atan2(float(deltaY),float(deltaX))          # radian
+            uniteAs = " rad"
+        return angle
+    except:
+        return 0
+#############################################################
+global ui            ; ui            = ""
+global sel           ; sel           = ""
+global document_     ; document_     = "FCInfo"
+global object_       ; object_       = ""
+global typeObject    ; typeObject    = ""
+global element_      ; element_      = ""
+global position0     ; position0     = 0.0
+global position1     ; position1     = 0.0
+global position2     ; position2     = 0.0
+global longueurObjet ; longueurObjet = 0.0
+global perimetre     ; perimetre     = 0.0
+
+global Plan_xy       ; Plan_xy       = 0.0
+global Plan_xy_V     ; Plan_xy_V     = ""
+global Plan_yz       ; Plan_yz       = 0.0
+global Plan_yz_V     ; Plan_yz_V     = ""
+global Plan_zx       ; Plan_zx       = 0.0
+global Plan_zx_V     ; Plan_zx_V     = ""
+
+global surface       ; surface       = 0.0
+global surfaceFace   ; surfaceFace   = 0.0
+global volume_       ; volume_       = 0.0
+global densite       ; densite       = 7.5  # (steel = 7.5 kg by dm3)
+global poids         ; poids         = 0.0
+global uniteM        ; uniteM        = 1.0  # unit of measurement length
+global uniteMs       ; uniteMs        =  "mm"
+global uniteS        ; uniteS        = 1.0  # unit of measurement surface
+global uniteSs       ; uniteSs       = u"mm²"
+global uniteV        ; uniteV        = 1.0  # unit of measurement volume
+global uniteVs       ; uniteVs       = u"mm³"
+global uniteP        ; uniteP        = 1.0  # unit of measure weight
+global unitePs       ; unitePs       = "g"
+global uniteAs       ; uniteAs       = u"°"
+
+global boundBoxCenterX ; boundBoxCenterX = 0.0
+global boundBoxCenterY ; boundBoxCenterY = 0.0
+global boundBoxCenterZ ; boundBoxCenterZ = 0.0
+
+global boundBoxCenter; boundBoxCenter= 0.0
+
+global CenterOfMassX ; CenterOfMassX = 0.0
+global CenterOfMassY ; CenterOfMassY = 0.0
+global CenterOfMassZ ; CenterOfMassZ = 0.0
+
+global boundBox_     ; boundBox_     = 0.0
+global boundBoxLX    ; boundBoxLX    = 0.0
+global boundBoxLY    ; boundBoxLy    = 0.0
+global boundBoxLZ    ; boundBoxLZ    = 0.0
+global boundBox_S    ; boundBox_S    = ""
+                       
+global MatrixX1      ; MatrixX1      = 0.0
+global MatrixY1      ; MatrixY1      = 0.0
+global MatrixZ1      ; MatrixZ1      = 0.0
+global Matrix_1      ; Matrix_1      = 0.0
+                       
+global MatrixX2      ; MatrixX2      = 0.0
+global MatrixY2      ; MatrixY2      = 0.0
+global MatrixZ2      ; MatrixZ2      = 0.0
+global Matrix_2      ; Matrix_2      = 0.0
+                       
+global MatrixX3      ; MatrixX3      = 0.0
+global MatrixY3      ; MatrixY3      = 0.0
+global MatrixZ3      ; MatrixZ3      = 0.0
+global Matrix_3      ; Matrix_3      = 0.0
+                       
+global Matrix12      ; Matrix12      = 0.0
+global Matrix13      ; Matrix13      = 0.0
+global Matrix14      ; Matrix14      = 0.0
+global Matrix15      ; Matrix15      = 0.0
+
+global Vertx         ; Vertx         = ""
+global Edges         ; Edges         = ""
+global ReperEdge     ; ReperEdge     = 0
+global EdgesLong     ; EdgesLong     = 0.0
+global Faces         ; Faces         = ""
+global FacesSurf     ; FacesSurf     = 0.0
+global FacesCoor     ; FacesCoor     = 0.0
+global compt_E       ; compt_E       = 0
+global compt_F       ; compt_F       = 0
+global compt_VF      ; compt_VF      = 0
+
+global placement_    ; placement_    = ""
+global RowCount      ; RowCount      = 200
+global RowCountTest  ; RowCountTest  = 0
+global path          ; path          = ""
+global SaveName      ; SaveName      = ""
+
+path = FreeCAD.ConfigGet("AppHomePath")
+
+def tableau():
+    global ui
+    global sel
+    global element_
+    global perimetre
+    global Vertx
+    global Edges
+    global ReperEdge
+    global EdgesLong
+    global Faces
+    global FacesSurf
+    global FacesCoor
+    global compt_E
+    global compt_F
+    global compt_VF
+    global RowCount
+    global RowCountTest
+    global pas
+    # tableau
+    # Vertexes
+
+    if len(sel) != 0:
+        Vertx=[]
+        Edges=[]
+        Faces=[]
+        compt_E   = 0
+        compt_F   = 0
+        compt_VF  = 0
+        pas       = 0
+        perimetre = 0.0   
+        EdgesLong = []
+        for j in enumerate(sel[0].Shape.Edges):
+            compt_E+=1
+            Edges.append("Edge%d" % (j[0]+1))
+            EdgesLong.append(str(sel[0].Shape.Edges[compt_E-1].Length))
+            perimetre += (sel[0].Shape.Edges[compt_E-1].Length)
+            a = sel[0].Shape.Edges[compt_E-1].Vertexes[0]
+            Vertx.append("X1: "+str(a.Point.x))
+            Vertx.append("Y1: "+str(a.Point.y))
+            Vertx.append("Z1: "+str(a.Point.z))
+            if element_ == "Edge%d" % (j[0]+1):
+                ReperEdge = compt_E
+            try:
+                a = sel[0].Shape.Edges[compt_E-1].Vertexes[1]
+                Vertx.append("X2: "+str(a.Point.x))
+                Vertx.append("Y2: "+str(a.Point.y))
+                Vertx.append("Z2: "+str(a.Point.z))
+            except:
+                Vertx.append("-")
+                Vertx.append("-")
+                Vertx.append("-")
+        FacesSurf = []
+        FacesCoor = []
+        for j in enumerate(sel[0].Shape.Faces):
+            compt_F+=1
+            Faces.append("Face%d" % (j[0]+1))
+            FacesSurf.append(str(sel[0].Shape.Faces[compt_F-1].Area))
+            fco = 0
+            for f0 in sel[0].Shape.Faces[compt_F-1].Vertexes:           # Vertexes de la face
+                fco += 1
+                FacesCoor.append("X"+str(fco)+": "+str(f0.Point.x))
+                FacesCoor.append("Y"+str(fco)+": "+str(f0.Point.y))
+                FacesCoor.append("Z"+str(fco)+": "+str(f0.Point.z))
+                compt_VF += 1
+            FacesCoor += ("T",)
+
+        RowCountTest = compt_E + compt_F + compt_VF
+        
+def affect():
+        global ui
+        global sel
+        global document_ 
+        global object_ 
+        global typeObject
+        global element_ 
+        global position0
+        global position1
+        global position2
+        global longueurObjet
+
+        global ReperEdge
+        global Plan_xy
+        global Plan_xy_V
+        global Plan_yz
+        global Plan_yz_V
+        global Plan_zx
+        global Plan_zx_V
+
+        global surface
+        global surfaceFace
+        global volume_ 
+        global densite
+        global poids
+        global uniteM
+        global uniteMs
+        global uniteS
+        global uniteSs
+        global uniteV
+        global uniteVs
+        global uniteP
+        global unitePs
+        global uniteAs
+
+        global boundBoxCenterX
+        global boundBoxCenterY
+        global boundBoxCenterZ
+
+        global boundBoxCenter
+
+        global CenterOfMassX
+        global CenterOfMassY
+        global CenterOfMassZ
+
+        global boundBox_
+        global boundBoxLX
+        global boundBoxLY
+        global boundBoxLZ
+        global boundBox_S
+        
+        global MatrixX1
+        global MatrixY1
+        global MatrixZ1
+        global Matrix_1
+                               
+        global MatrixX2
+        global MatrixY2
+        global MatrixZ2
+        global Matrix_2
+                               
+        global MatrixX3
+        global MatrixY3
+        global MatrixZ3
+        global Matrix_3
+                               
+        global Matrix12
+        global Matrix13
+        global Matrix14
+        global Matrix15
+
+        global placement_
+        global SaveName
+
+        global FacesSurf
+        global EdgesLong
+        global FacesCoor
+
+        try:
+            atest = sel[0].Shape.Vertexes
+        except:
+            App.Console.PrintMessage("Invalid selection"+"\n")
+            errorDialog("Invalid selection")
+            sel = ""
+        else:
+            sel = FreeCADGui.Selection.getSelection()   
+            mydoc = FreeCAD.activeDocument().Name
+            document_ = mydoc
+
+            try:
+                object_ = sel[0].Label
+            except:
+                object_ = ""
+
+            try:
+                SubElement = FreeCADGui.Selection.getSelectionEx()   
+                element_ = SubElement[0].SubElementNames[0]
+            except:
+                element_ = ""
+
+            # longueur Objet
+            try:
+                longueurObjet = Gui.Selection.getSelectionEx()[0].SubObjects[0].Length   
+            except:
+                longueurObjet = 0.0
+
+            # tableau
+            tableau()
+
+            # surface
+            try:
+                surface = sel[0].Shape.Area
+            except:
+                surface = 0.0
+
+            try:
+                surfaceFace = Gui.Selection.getSelectionEx()[0].SubObjects[0].Area
+            except:
+                surfaceFace = 0.0
+
+             # volume
+            try:
+                volume_ = sel[0].Shape.Volume
+            except:
+                volume_ = 0.0
+
+             # densité
+            poids = ((volume_ * densite) * uniteP) / 1000   # mm3   (mm base  FreeCAD)
+
+             # boundinbox (dimensions hors tout)
+            try:
+                boundBox_ = sel[0].Shape.BoundBox
+                boundBoxLX = boundBox_.XLength
+                boundBoxLY = boundBox_.YLength
+                boundBoxLZ = boundBox_.ZLength
+                boundBox_S = "[X: "+str(boundBoxLX * uniteM)+" "+uniteMs+"] x [Y: "+str(boundBoxLY * uniteM)+" "+uniteMs+"] x [Z:"+str(boundBoxLZ * uniteM)+" "+uniteMs+"]"
+            except:
+                boundBox_  = 0.0
+                boundBoxLX = 0.0
+                boundBoxLY = 0.0
+                boundBoxLZ = 0.0
+                boundBox_S = ""
+
+             # centre de la forme
+            try:
+                boundBoxCenterX = boundBox_.Center[0]
+                boundBoxCenterY = boundBox_.Center[1]
+                boundBoxCenterZ = boundBox_.Center[2]
+            except:
+                boundBoxCenterX = 0.0
+                boundBoxCenterY = 0.0
+                boundBoxCenterZ = 0.0
+
+             # Inclinaison
+            mode = 1
+            try:
+                Plan_xy   = angle2(sel[0].Shape.Vertexes[ReperEdge-1].Point[0],sel[0].Shape.Vertexes[ReperEdge-1].Point[1],sel[0].Shape.Vertexes[ReperEdge].Point[0],sel[0].Shape.Vertexes[ReperEdge].Point[1],mode)
+                Plan_xy_V = "[,"+str(sel[0].Shape.Vertexes[ReperEdge-1].Point[0])+" , "+str(sel[0].Shape.Vertexes[ReperEdge-1].Point[1])+",]  [,"+str(sel[0].Shape.Vertexes[ReperEdge].Point[0])+" , "+str(sel[0].Shape.Vertexes[ReperEdge].Point[1])+",]"
+            except:
+                Plan_xy = 0.0
+                Plan_xy_V = ""
+            try:
+                Plan_yz   = angle2(sel[0].Shape.Vertexes[ReperEdge-1].Point[1],sel[0].Shape.Vertexes[ReperEdge-1].Point[2],sel[0].Shape.Vertexes[ReperEdge].Point[1],sel[0].Shape.Vertexes[ReperEdge].Point[2],mode)
+                Plan_yz_V = "[,"+str(sel[0].Shape.Vertexes[ReperEdge-1].Point[1])+" , "+str(sel[0].Shape.Vertexes[ReperEdge-1].Point[2])+",]  [,"+str(sel[0].Shape.Vertexes[ReperEdge].Point[1])+" , "+str(sel[0].Shape.Vertexes[ReperEdge].Point[2])+",]"
+            except:
+                Plan_yz   = 0.0
+                Plan_yz_V   = ""
+            try:
+                Plan_zx   = angle2(sel[0].Shape.Vertexes[ReperEdge-1].Point[2],sel[0].Shape.Vertexes[ReperEdge-1].Point[0],sel[0].Shape.Vertexes[ReperEdge].Point[2],sel[0].Shape.Vertexes[ReperEdge].Point[0],mode)
+                Plan_zx_V = "[,"+str(sel[0].Shape.Vertexes[ReperEdge-1].Point[2])+" , "+str(sel[0].Shape.Vertexes[ReperEdge-1].Point[0])+",]  [,"+str(sel[0].Shape.Vertexes[ReperEdge].Point[2])+" , "+str(sel[0].Shape.Vertexes[ReperEdge].Point[0])+",]"
+            except:
+                Plan_zx   = 0.0
+                Plan_zx_V = ""
+
+    #         # Placement
+    #        placement_ = sel[0].Shape.Placement
+    #        App.Console.PrintMessage(placement_+"\n")
+
+            try:
+                typeObject = sel[0].Shape.ShapeType
+            except:
+                App.Console.PrintMessage("Error type object"+"\n")
+                typeObject = ""
+
+            selEx = FreeCADGui.Selection.getSelectionEx()
+            objs = [selobj.Object for selobj in selEx]
+            s = objs[0].Shape
+
+            # center of mass
+            try:
+                c = s.Solids[0].CenterOfMass
+                CenterOfMassX = c.x
+                CenterOfMassY = c.y
+                CenterOfMassZ = c.z
+            except:
+                CenterOfMassX = 0.0
+                CenterOfMassY = 0.0
+                CenterOfMassZ = 0.0
+
+            # inertia
+            try:
+                m = s.Solids[0].MatrixOfInertia
+                MatrixX1 = (m.A[0])
+                MatrixY1 = (m.A[1])
+                MatrixZ1 = (m.A[2])
+                Matrix_1 = (m.A[3])
+
+                MatrixX2 = (m.A[4])
+                MatrixY2 = (m.A[5])
+                MatrixZ2 = (m.A[6])
+                Matrix_2 = (m.A[7])
+
+                MatrixX3 = (m.A[8])
+                MatrixY3 = (m.A[9])
+                MatrixZ3 = (m.A[10])
+                Matrix_3 = (m.A[11])
+
+                Matrix12 = (m.A[12])
+                Matrix13 = (m.A[13])
+                Matrix14 = (m.A[14])
+                Matrix15 = (m.A[15])
+            except:
+                MatrixX1 = 0.0
+                MatrixY1 = 0.0
+                MatrixZ1 = 0.0
+                Matrix_1 = 0.0
+
+                MatrixX2 = 0.0
+                MatrixY2 = 0.0
+                MatrixZ2 = 0.0
+                Matrix_2 = 0.0
+
+                MatrixX3 = 0.0
+                MatrixY3 = 0.0
+                MatrixZ3 = 0.0
+                Matrix_3 = 0.0
+
+                Matrix12 = 0.0
+                Matrix13 = 0.0
+                Matrix14 = 0.0
+                Matrix15 = 0.0
+
+########################################################
+            App.Console.PrintMessage("Beginning___________________________________________________________________"+"\n")
+            App.Console.PrintMessage("Document name            : "+document_+"\n")
+            App.Console.PrintMessage("Object name              : "+object_+"\n")
+            App.Console.PrintMessage("Object type              : "+typeObject+"\n")
+            App.Console.PrintMessage("Element name             : "+str(element_)+"\n")
+            App.Console.PrintMessage("Mouse coordinates        :  X: "+str(position0)+",  Y: "+str(position1)+",  Z: "+str(position2)+"\n")
+            App.Console.PrintMessage("Length of the object     : "+str(longueurObjet * uniteM)+", "+uniteMs+"\n")
+            App.Console.PrintMessage("Perimeter of the shape   : "+str(perimetre * uniteM)+", "+uniteMs+"\n\n")
+            App.Console.PrintMessage("Vertexes and details     : ("+ str(compt_E) +") ("+ str(compt_F)+") ("+ str(compt_VF)+") ("+str(RowCountTest)+")\n")
+            co = 0
+            aa = 0
+            for j in enumerate(Edges):
+                App.Console.PrintMessage(str(j[1])+" = "+str(float(EdgesLong[co]) * float(uniteM))+" "+uniteMs+"\n")
+                try:
+                    for a in range(aa,aa+6):
+                        App.Console.PrintMessage(Vertx[a]+"\n")
+                except:
+                    None
+                co += 1
+                aa += 6
+                print
+            co=0
+            cco=0
+            for j in enumerate(Faces):
+                App.Console.PrintMessage(str(j[1])+" = "+str(float(FacesSurf[co]) * float(uniteS))+" "+uniteSs+"\n")
+                for jj in range(cco,len(FacesCoor)):
+                    cco+=1
+                    if FacesCoor[jj] == "T":
+                        break
+                    else:
+                        App.Console.PrintMessage(FacesCoor[jj]+"\n")
+                print
+                co += 1
+            cco=0
+            App.Console.PrintMessage("Plan                     : XY: " + str(Plan_xy)+uniteAs+" coordinates: " + str(Plan_xy_V)+"\n")
+            App.Console.PrintMessage("Plan                     : YZ: " + str(Plan_yz)+uniteAs+" coordinates: " + str(Plan_yz_V)+"\n")
+            App.Console.PrintMessage("Plan                     : ZX: " + str(Plan_zx)+uniteAs+" coordinates: " + str(Plan_zx_V)+"\n\n")
+            App.Console.PrintMessage("The form surface         : "+str(surface * uniteS)+"  "+uniteSs+"\n")
+            App.Console.PrintMessage("The face surface         : "+str(surfaceFace * uniteS)+"  "+uniteSs+"\n\n")
+            App.Console.PrintMessage("Volume of the form       : "+str(volume_ * uniteV)+"  "+uniteVs+"\n")
+            App.Console.PrintMessage("Weight                   : "+str(poids)+" "+unitePs+" Density : "+str(densite)+"\n\n")
+            App.Console.PrintMessage("Center of the shape      : X: "+str(boundBoxCenterX)+"  Y: "+str(boundBoxCenterY)+"  Z: "+str(boundBoxCenterZ)+"\n")
+            App.Console.PrintMessage("Center of mass           : X: "+str(CenterOfMassX)  +"  Y: "+str(CenterOfMassY)  +"  Z: "+str(CenterOfMassZ)+"\n")
+            App.Console.PrintMessage("Overall dimensions       : "+boundBox_S+"\n\n")
+            App.Console.PrintMessage("Matrix of inertia        : X: "+str(MatrixX1)+"  Y: "+str(MatrixY1)+"  Z: "+str(MatrixZ1)+"  : "+str(Matrix_1)+"\n")
+            App.Console.PrintMessage("                         : X: "+str(MatrixX2)+"  Y: "+str(MatrixY2)+"  Z: "+str(MatrixZ2)+"  : "+str(Matrix_2)+"\n")
+            App.Console.PrintMessage("                         : X: "+str(MatrixX3)+"  Y: "+str(MatrixY3)+"  Z: "+str(MatrixZ3)+"  : "+str(Matrix_3)+"\n")
+            App.Console.PrintMessage("                         : X: "+str(Matrix12)+"  Y: "+str(Matrix13)+"  Z: "+str(Matrix14)+"  : "+str(Matrix15)+"\n")
+            App.Console.PrintMessage("End_________________________________________________________________________"+"\n")
+####################################
+class Ui_MainWindow(object):
+
+    def __init__(self, MainWindow):
+        global ui
+        global sel
+        global document_
+        global object_
+        global typeObject
+        global element_
+        global position0
+        global position1
+        global position2
+        global longueurObjet
+        global perimetre
+        global Plan_xy
+        global Plan_xy_V
+        global Plan_yz
+        global Plan_yz_V
+        global Plan_zx
+        global Plan_zx_V
+        global surface
+        global surfaceFace
+        global volume_
+        global densite
+        global poids
+        global uniteM
+        global uniteMs
+        global uniteS
+        global uniteSs
+        global uniteV
+        global uniteVs
+        global uniteP
+        global unitePs
+        global uniteAs
+        global boundBoxCenterX
+        global boundBoxCenterY
+        global boundBoxCenterZ
+        global boundBoxCenter
+        global CenterOfMassX
+        global CenterOfMassY
+        global CenterOfMassZ
+        global boundBox_
+        global boundBoxLX
+        global boundBoxLY
+        global boundBoxLZ
+        global boundBox_S
+
+        global MatrixX1
+        global MatrixY1
+        global MatrixZ1
+        global Matrix_1
+
+        global MatrixX2
+        global MatrixY2
+        global MatrixZ2
+        global Matrix_2
+
+        global MatrixX3
+        global MatrixY3
+        global MatrixZ3
+        global Matrix_3
+
+        global Matrix12
+        global Matrix13
+        global Matrix14
+        global Matrix15
+        global Vertx
+        global Edges
+        global EdgesLong
+        global Faces
+        global FacesSurf
+        global FacesCoor
+        global compt_E
+        global compt_F
+        global compt_VF
+        global placement_
+        global RowCount
+        global RowCountTest
+
+        self.window = MainWindow
+        MainWindow.setObjectName(_fromUtf8("MainWindow"))
+        MainWindow.resize(339, 969)
+#        MainWindow.setMaximumSize(QtCore.QSize(339, 969))
+        self.centralWidget = QtGui.QWidget(MainWindow)
+        self.centralWidget.setObjectName(_fromUtf8("centralWidget"))
+#        MainWindow.verticalScrollBar
+        MainWindow.setWindowModality(QtCore.Qt.NonModal)
+        MainWindow.setFocusPolicy(QtCore.Qt.NoFocus)
+        MainWindow.setIconSize(QtCore.QSize(30, 30))
+        MainWindow.setToolButtonStyle(QtCore.Qt.ToolButtonIconOnly)
+        MainWindow.setDocumentMode(True)
+        MainWindow.setTabShape(QtGui.QTabWidget.Triangular)
+        MainWindow.setDockOptions(QtGui.QMainWindow.AllowTabbedDocks|QtGui.QMainWindow.AnimatedDocks|QtGui.QMainWindow.VerticalTabs)
+
+        sel = FreeCADGui.Selection.getSelection()   
+        if len(sel)==0:
+            App.Console.PrintMessage("Select an object"+"\n")
+            errorDialog("Select an object")
+        else:
+            affect()
+            
+###################################################
+#         # Placement
+#        placement_ = sel[0].Shape.Placement
+#        App.Console.PrintMessage(placement_+"\n")
+###################################################
+        self.lineEdit_1 = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_1.setGeometry(QtCore.QRect(120, 10, 211, 22))
+        self.lineEdit_1.setObjectName(_fromUtf8("lineEdit_1"))
+        self.lineEdit_1.setText(document_)
+        self.lineEdit_1.setToolTip(_translate("MainWindow", "Name of the active document.", None))
+
+        self.lineEdit_2 = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_2.setGeometry(QtCore.QRect(120, 40, 101, 22))
+        self.lineEdit_2.setObjectName(_fromUtf8("lineEdit_2"))
+        self.lineEdit_2.setText(object_)
+        self.lineEdit_2.setToolTip(_translate("MainWindow","Name of the selected object.", None))
+
+        self.lineEdit_2a = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_2a.setGeometry(QtCore.QRect(230, 40, 101, 22))
+        self.lineEdit_2a.setObjectName(_fromUtf8("lineEdit_2a"))
+        self.lineEdit_2a.setText(typeObject)
+        self.lineEdit_2a.setToolTip(_translate("MainWindow","Object type.", None))
+
+        self.lineEdit_3 = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_3.setGeometry(QtCore.QRect(120, 70, 211, 22))
+        self.lineEdit_3.setObjectName(_fromUtf8("lineEdit_3"))
+        self.lineEdit_3.setText(str(element_))
+        self.lineEdit_3.setToolTip(_translate("MainWindow","Name of the selected object.", None))
+
+        self.lineEdit_4x = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_4x.setGeometry(QtCore.QRect(10, 140, 101, 22))
+        self.lineEdit_4x.setObjectName(_fromUtf8("lineEdit_4x"))
+        self.lineEdit_4x.setText(str(position0))
+        self.lineEdit_4x.setToolTip(_translate("MainWindow","X coordinate of the click of the mouse.", None))
+
+        self.lineEdit_4y = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_4y.setGeometry(QtCore.QRect(120, 140, 101, 22))
+        self.lineEdit_4y.setObjectName(_fromUtf8("lineEdit_4y"))
+        self.lineEdit_4y.setText(str(position1))
+        self.lineEdit_4y.setToolTip(_translate("MainWindow","Y coordinate of the click of the mouse.", None))
+
+        self.lineEdit_4z = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_4z.setGeometry(QtCore.QRect(230, 140, 101, 22))
+        self.lineEdit_4z.setObjectName(_fromUtf8("lineEdit_4z"))
+        self.lineEdit_4z.setText(str(position2))
+        self.lineEdit_4z.setToolTip(_translate("MainWindow","Z coordinate of the click of the mouse.", None))
+
+        self.lineEdit_5 = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_5.setGeometry(QtCore.QRect(120, 170, 211, 22))
+        self.lineEdit_5.setObjectName(_fromUtf8("lineEdit_5"))
+        self.lineEdit_5.setText(str(longueurObjet))
+        self.lineEdit_5.setToolTip(_translate("MainWindow","Length of the object. \nIf one side is selected the perimeter of the face will be displayed.", None))
+
+        self.lineEdit_6 = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_6.setGeometry(QtCore.QRect(120, 200, 211, 22))
+        self.lineEdit_6.setObjectName(_fromUtf8("lineEdit_6"))
+        self.lineEdit_6.setText(str(perimetre))
+        self.lineEdit_6.setToolTip(_translate("MainWindow","Total perimeter of the shape.", None))
+
+        self.tableWidget = QtGui.QTableWidget(self.centralWidget)
+        self.tableWidget.setGeometry(QtCore.QRect(10, 250, 320, 70))
+        self.tableWidget.setIconSize(QtCore.QSize(15, 15))
+        self.tableWidget.setRowCount(RowCount)
+        self.tableWidget.setColumnCount(8)                                 # number of columns
+        self.tableWidget.setObjectName(_fromUtf8("tableWidget"))
+        self.tableWidget.horizontalHeader().setVisible(False)
+        self.tableWidget.horizontalHeader().setDefaultSectionSize(100)
+        self.tableWidget.horizontalHeader().setMinimumSectionSize(15)
+        self.tableWidget.verticalHeader().setVisible(True)
+        self.tableWidget.verticalHeader().setCascadingSectionResizes(False) #
+        self.tableWidget.verticalHeader().setDefaultSectionSize(20)
+        self.tableWidget.verticalHeader().setMinimumSectionSize(20)
+        self.tableWidget.setToolTip(_translate("MainWindow","Details of the form. \nScoreboard only the first 200 details of the form are displayed. \nAll the elements will be visible in the file after saving it.", None))
+
+        self.pushButton_Ra = QtGui.QPushButton(self.centralWidget)
+        self.pushButton_Ra.setGeometry(QtCore.QRect(35, 338, 91, 20))
+        self.pushButton_Ra.setObjectName(_fromUtf8("pushButton_Ra"))
+        self.pushButton_Ra.clicked.connect(self.on_pushButton_Ra_clicked) #connection pushButton_Ra "Radian"
+        self.pushButton_Ra.setToolTip(_translate("MainWindow","Toggles between decimal degrees, degrees minutes secondes\nRadian, Grade.", None))
+
+        self.lineEdit_8xy = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_8xy.setGeometry(QtCore.QRect(35, 360, 91, 22))
+        self.lineEdit_8xy.setObjectName(_fromUtf8("lineEdit_8xy"))
+        self.lineEdit_8xy.setText(str(Plan_xy)+uniteAs)
+        self.lineEdit_8xy.setToolTip(_translate("MainWindow","Angle in the XY plane.", None))
+
+        self.lineEdit_8xya = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_8xya.setGeometry(QtCore.QRect(130, 360, 201, 22))
+        self.lineEdit_8xya.setObjectName(_fromUtf8("lineEdit_8xya"))
+        self.lineEdit_8xya.setText(str(Plan_xy_V))
+
+        self.lineEdit_8yz = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_8yz.setGeometry(QtCore.QRect(35, 390, 91, 22))
+        self.lineEdit_8yz.setObjectName(_fromUtf8("lineEdit_8yz"))
+        self.lineEdit_8yz.setText(str(Plan_yz)+uniteAs)
+        self.lineEdit_8yz.setToolTip(_translate("MainWindow","Angle in the YZ plane.", None))
+
+        self.lineEdit_8yza = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_8yza.setGeometry(QtCore.QRect(130, 390, 201, 22))
+        self.lineEdit_8yza.setObjectName(_fromUtf8("lineEdit_8yza"))
+        self.lineEdit_8yza.setText(str(Plan_yz_V))
+
+        self.lineEdit_8zx = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_8zx.setGeometry(QtCore.QRect(35, 420, 91, 22))
+        self.lineEdit_8zx.setObjectName(_fromUtf8("lineEdit_8zx"))
+        self.lineEdit_8zx.setText(str(Plan_zx)+uniteAs)
+        self.lineEdit_8zx.setToolTip(_translate("MainWindow","Angle in the ZX plane.", None))
+
+        self.lineEdit_8zxa = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_8zxa.setGeometry(QtCore.QRect(130, 420, 201, 22))
+        self.lineEdit_8zxa.setObjectName(_fromUtf8("lineEdit_8zxa"))
+        self.lineEdit_8zxa.setText(str(Plan_zx_V))
+
+        self.lineEdit_9a = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_9a.setGeometry(QtCore.QRect(130, 450, 201, 22))
+        self.lineEdit_9a.setObjectName(_fromUtf8("lineEdit_9a"))
+        self.lineEdit_9a.setText(str(surface))
+        self.lineEdit_9a.setToolTip(_translate("MainWindow","Total area of the form.", None))
+
+        self.lineEdit_10a = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_10a.setGeometry(QtCore.QRect(130, 480, 201, 22))
+        self.lineEdit_10a.setObjectName(_fromUtf8("lineEdit_10a"))
+        self.lineEdit_10a.setText(str(surfaceFace))
+        self.lineEdit_10a.setToolTip(_translate("MainWindow","Surface of the face.", None))
+
+        self.lineEdit_11a = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_11a.setGeometry(QtCore.QRect(130, 510, 201, 22))
+        self.lineEdit_11a.setObjectName(_fromUtf8("lineEdit_11a"))
+        self.lineEdit_11a.setText(str(volume_))
+        self.lineEdit_11a.setToolTip(_translate("MainWindow","Total volume of the form.", None))
+
+        self.lineEdit_12a = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_12a.setGeometry(QtCore.QRect(130, 540, 131, 22))
+        self.lineEdit_12a.setObjectName(_fromUtf8("lineEdit_12a"))
+        self.lineEdit_12a.setText(str(poids)+" "+unitePs)
+        self.lineEdit_12a.setToolTip(_translate("MainWindow","Weight of the form in the selected unit.", None))
+
+        self.lineEdit_13x = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_13x.setGeometry(QtCore.QRect(10, 610, 101, 22))
+        self.lineEdit_13x.setObjectName(_fromUtf8("lineEdit_13x"))
+        self.lineEdit_13x.setText(str(boundBoxCenterX))
+        self.lineEdit_13x.setToolTip(_translate("MainWindow","X coordinate of the center of the shape.", None))
+
+        self.lineEdit_13y = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_13y.setGeometry(QtCore.QRect(120, 610, 101, 22))
+        self.lineEdit_13y.setObjectName(_fromUtf8("lineEdit_13y"))
+        self.lineEdit_13y.setText(str(boundBoxCenterY))
+        self.lineEdit_13y.setToolTip(_translate("MainWindow","Y coordinate of the center of the shape.", None))
+
+        self.lineEdit_13z = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_13z.setGeometry(QtCore.QRect(230, 610, 101, 22))
+        self.lineEdit_13z.setObjectName(_fromUtf8("lineEdit_13z"))
+        self.lineEdit_13z.setText(str(boundBoxCenterZ))
+        self.lineEdit_13z.setToolTip(_translate("MainWindow","Z coordinate of the center of the shape.", None))
+
+        self.lineEdit_14x = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_14x.setGeometry(QtCore.QRect(10, 680, 101, 22))
+        self.lineEdit_14x.setObjectName(_fromUtf8("lineEdit_14x"))
+        self.lineEdit_14x.setText(str(CenterOfMassX))
+        self.lineEdit_14x.setToolTip(_translate("MainWindow","X coordinate of the center of mass", None))
+
+        self.lineEdit_14y = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_14y.setGeometry(QtCore.QRect(120, 680, 101, 22))
+        self.lineEdit_14y.setObjectName(_fromUtf8("lineEdit_14y"))
+        self.lineEdit_14y.setText(str(CenterOfMassY))
+        self.lineEdit_14y.setToolTip(_translate("MainWindow","Y coordinate of the center of mass", None))
+
+        self.lineEdit_14z = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_14z.setGeometry(QtCore.QRect(230, 680, 101, 22))
+        self.lineEdit_14z.setObjectName(_fromUtf8("lineEdit_14z"))
+        self.lineEdit_14z.setText(str(CenterOfMassZ))
+        self.lineEdit_14z.setToolTip(_translate("MainWindow","Z coordinate of the center of mass", None))
+
+        self.lineEdit_15 = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_15.setGeometry(QtCore.QRect(120, 710, 211, 22))
+        self.lineEdit_15.setObjectName(_fromUtf8("lineEdit_15"))
+        self.lineEdit_15.setText(boundBox_S)
+        self.lineEdit_15.setToolTip(_translate("MainWindow","Dimensions of the form.", None))
+
+        self.lineEdit_16_1x = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_1x.setGeometry(QtCore.QRect(10, 780, 86, 22))
+        self.lineEdit_16_1x.setObjectName(_fromUtf8("lineEdit_16_1x"))
+        self.lineEdit_16_1x.setText(str(MatrixX1))
+
+        self.lineEdit_16_1y = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_1y.setGeometry(QtCore.QRect(105, 780, 86, 22))
+        self.lineEdit_16_1y.setObjectName(_fromUtf8("lineEdit_16_1y"))
+        self.lineEdit_16_1y.setText(str(MatrixY1))
+
+        self.lineEdit_16_1z = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_1z.setGeometry(QtCore.QRect(200, 780, 86, 22))
+        self.lineEdit_16_1z.setObjectName(_fromUtf8("lineEdit_16_1z"))
+        self.lineEdit_16_1z.setText(str(MatrixZ1))
+
+        self.lineEdit_16_01 = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_01.setGeometry(QtCore.QRect(295, 780, 36, 22))
+        self.lineEdit_16_01.setObjectName(_fromUtf8("lineEdit_16_01"))
+        self.lineEdit_16_01.setText(str(Matrix_1))
+
+        self.lineEdit_16_2x = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_2x.setGeometry(QtCore.QRect(10, 810, 86, 22))
+        self.lineEdit_16_2x.setObjectName(_fromUtf8("lineEdit_16_2x"))
+        self.lineEdit_16_2x.setText(str(MatrixX2))
+
+        self.lineEdit_16_2y = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_2y.setGeometry(QtCore.QRect(105, 810, 86, 22))
+        self.lineEdit_16_2y.setObjectName(_fromUtf8("lineEdit_16_2y"))
+        self.lineEdit_16_2y.setText(str(MatrixY2))
+
+        self.lineEdit_16_2z = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_2z.setGeometry(QtCore.QRect(200, 810, 86, 22))
+        self.lineEdit_16_2z.setObjectName(_fromUtf8("lineEdit_16_2z"))
+        self.lineEdit_16_2z.setText(str(MatrixZ2))
+
+        self.lineEdit_16_02 = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_02.setGeometry(QtCore.QRect(295, 810, 36, 22))
+        self.lineEdit_16_02.setObjectName(_fromUtf8("lineEdit_16_02"))
+        self.lineEdit_16_02.setText(str(Matrix_2))
+
+        self.lineEdit_16_3x = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_3x.setGeometry(QtCore.QRect(10, 840, 86, 22))
+        self.lineEdit_16_3x.setObjectName(_fromUtf8("lineEdit_16_3x"))
+        self.lineEdit_16_3x.setText(str(MatrixX3))
+
+        self.lineEdit_16_3y = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_3y.setGeometry(QtCore.QRect(105, 840, 86, 22))
+        self.lineEdit_16_3y.setObjectName(_fromUtf8("lineEdit_16_3y"))
+        self.lineEdit_16_3y.setText(str(MatrixY3))
+
+        self.lineEdit_16_3z = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_3z.setGeometry(QtCore.QRect(200, 840, 86, 22))
+        self.lineEdit_16_3z.setObjectName(_fromUtf8("lineEdit_16_3z"))
+        self.lineEdit_16_3z.setText(str(MatrixZ3))
+
+        self.lineEdit_16_03 = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_03.setGeometry(QtCore.QRect(295, 840, 36, 22))
+        self.lineEdit_16_03.setObjectName(_fromUtf8("lineEdit_16_03"))
+        self.lineEdit_16_03.setText(str(Matrix_3))
+
+        self.lineEdit_16_4x = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_4x.setGeometry(QtCore.QRect(10, 870, 86, 22))
+        self.lineEdit_16_4x.setObjectName(_fromUtf8("lineEdit_16_4x"))
+        self.lineEdit_16_4x.setText(str(Matrix12))
+
+        self.lineEdit_16_4y = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_4y.setGeometry(QtCore.QRect(105, 870, 86, 22))
+        self.lineEdit_16_4y.setObjectName(_fromUtf8("lineEdit_16_4y"))
+        self.lineEdit_16_4y.setText(str(Matrix13))
+
+        self.lineEdit_16_4z = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_4z.setGeometry(QtCore.QRect(200, 870, 86, 22))
+        self.lineEdit_16_4z.setObjectName(_fromUtf8("lineEdit_16_4z"))
+        self.lineEdit_16_4z.setText(str(Matrix14))
+
+        self.lineEdit_16_04 = QtGui.QLineEdit(self.centralWidget)
+        self.lineEdit_16_04.setGeometry(QtCore.QRect(295, 870, 36, 22))
+        self.lineEdit_16_04.setObjectName(_fromUtf8("lineEdit_16_04"))
+        self.lineEdit_16_04.setText(str(Matrix15))
+
+        self.pushButton_Raf = QtGui.QPushButton(self.centralWidget)
+        self.pushButton_Raf.setGeometry(QtCore.QRect(295, 900, 36, 28))
+        self.pushButton_Raf.setObjectName(_fromUtf8("pushButton_Raf"))
+        self.pushButton_Raf.clicked.connect(self.on_pushButton_Raf_clicked) #connection pushButton_Raf "Refresh"
+
+        self.pushButton_Lec = QtGui.QPushButton(self.centralWidget)
+        self.pushButton_Lec.setGeometry(QtCore.QRect(10, 900, 86, 28))
+        self.pushButton_Lec.setObjectName(_fromUtf8("pushButton_Lec"))
+        self.pushButton_Lec.clicked.connect(self.on_pushButton_Lec_clicked) #connection pushButton_Lec "Read"
+
+        self.pushButton_En = QtGui.QPushButton(self.centralWidget)
+        self.pushButton_En.setGeometry(QtCore.QRect(105, 900, 86, 28))
+        self.pushButton_En.setObjectName(_fromUtf8("pushButton_En"))
+        self.pushButton_En.clicked.connect(self.on_pushButton_En_clicked) #connection pushButton_En "Save"
+
+        self.pushButton_Q = QtGui.QPushButton(self.centralWidget)
+        self.pushButton_Q.setGeometry(QtCore.QRect(200, 900, 86, 28))
+        self.pushButton_Q.setObjectName(_fromUtf8("pushButton_Q"))
+        self.pushButton_Q.clicked.connect(self.on_pushButton02_clicked) #connection pushButton02 "Exit"
+
+        self.label_1 = QtGui.QLabel(self.centralWidget)
+        self.label_1.setGeometry(QtCore.QRect(10, 10, 111, 16))
+        self.label_1.setObjectName(_fromUtf8("label_1"))
+        self.label_2 = QtGui.QLabel(self.centralWidget)
+        self.label_2.setGeometry(QtCore.QRect(10, 40, 101, 16))
+        self.label_2.setObjectName(_fromUtf8("label_2"))
+        self.label_3 = QtGui.QLabel(self.centralWidget)
+        self.label_3.setGeometry(QtCore.QRect(10, 70, 111, 16))
+        self.label_3.setObjectName(_fromUtf8("label_3"))
+        self.label_4 = QtGui.QLabel(self.centralWidget)
+        self.label_4.setGeometry(QtCore.QRect(10, 100, 171, 16))
+        self.label_4.setObjectName(_fromUtf8("label_4"))
+        self.label_4x = QtGui.QLabel(self.centralWidget)
+        self.label_4x.setGeometry(QtCore.QRect(20, 120, 21, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_4x.setFont(font)
+        self.label_4x.setObjectName(_fromUtf8("label_4x"))
+        self.label_4y = QtGui.QLabel(self.centralWidget)
+        self.label_4y.setGeometry(QtCore.QRect(130, 120, 21, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_4y.setFont(font)
+        self.label_4y.setObjectName(_fromUtf8("label_4y"))
+        self.label_4z = QtGui.QLabel(self.centralWidget)
+        self.label_4z.setGeometry(QtCore.QRect(240, 120, 21, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_4z.setFont(font)
+        self.label_4z.setObjectName(_fromUtf8("label_4z"))
+        self.label_5 = QtGui.QLabel(self.centralWidget)
+        self.label_5.setGeometry(QtCore.QRect(10, 172, 121, 16))
+        self.label_5.setObjectName(_fromUtf8("label_5"))
+
+        self.comboBox = QtGui.QComboBox(self.centralWidget)
+        self.comboBox.setGeometry(QtCore.QRect(30, 170, 81, 22))
+        self.comboBox.setObjectName(_fromUtf8("comboBox"))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.addItem(_fromUtf8(""))
+        self.comboBox.setToolTip(_translate("MainWindow","Selects a unit of length.", None))
+        QtCore.QObject.connect(self.comboBox, QtCore.SIGNAL("currentIndexChanged(QString)"), self.SIGNAL_comboBox_Changed) 
+
+        self.label_6 = QtGui.QLabel(self.centralWidget)
+        self.label_6.setGeometry(QtCore.QRect(10, 200, 131, 16))
+        self.label_6.setObjectName(_fromUtf8("label_6"))
+        self.label_7 = QtGui.QLabel(self.centralWidget)
+        self.label_7.setGeometry(QtCore.QRect(10, 230, 320, 16))
+        self.label_7.setObjectName(_fromUtf8("label_7"))
+        self.label_8 = QtGui.QLabel(self.centralWidget)
+        self.label_8.setGeometry(QtCore.QRect(10, 320, 71, 16))
+        self.label_8.setObjectName(_fromUtf8("label_8"))
+        self.label_8a = QtGui.QLabel(self.centralWidget)
+        self.label_8a.setGeometry(QtCore.QRect(10, 340, 31, 16))
+        self.label_8a.setObjectName(_fromUtf8("label_8a"))
+        self.label_8a_2 = QtGui.QLabel(self.centralWidget)
+        self.label_8a_2.setGeometry(QtCore.QRect(135, 340, 91, 16))
+        self.label_8a_2.setObjectName(_fromUtf8("label_8a"))
+        self.label_8xy = QtGui.QLabel(self.centralWidget)
+        self.label_8xy.setGeometry(QtCore.QRect(13, 360, 21, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_8xy.setFont(font)
+        self.label_8xy.setObjectName(_fromUtf8("label_8xy"))
+        self.label_8yz = QtGui.QLabel(self.centralWidget)
+        self.label_8yz.setGeometry(QtCore.QRect(13, 390, 16, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_8yz.setFont(font)
+        self.label_8yz.setObjectName(_fromUtf8("label_8yz"))
+        self.label_8zx = QtGui.QLabel(self.centralWidget)
+        self.label_8zx.setGeometry(QtCore.QRect(13, 420, 21, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_8zx.setFont(font)
+        self.label_8zx.setObjectName(_fromUtf8("label_8zx"))
+        self.label_9 = QtGui.QLabel(self.centralWidget)
+        self.label_9.setGeometry(QtCore.QRect(10, 450, 121, 16))
+        self.label_9.setObjectName(_fromUtf8("label_9"))
+        self.label_10 = QtGui.QLabel(self.centralWidget)
+        self.label_10.setGeometry(QtCore.QRect(10, 480, 121, 16))
+        self.label_10.setObjectName(_fromUtf8("label_10"))
+        self.label_11 = QtGui.QLabel(self.centralWidget)
+        self.label_11.setGeometry(QtCore.QRect(10, 510, 121, 16))
+        self.label_11.setObjectName(_fromUtf8("label_11"))
+        self.label_12 = QtGui.QLabel(self.centralWidget)
+        self.label_12.setGeometry(QtCore.QRect(10, 542, 81, 16))
+        self.label_12.setObjectName(_fromUtf8("label_12"))
+
+        self.comboBox2 = QtGui.QComboBox(self.centralWidget)
+        self.comboBox2.setGeometry(QtCore.QRect(10, 540, 115, 22))
+        self.comboBox2.setObjectName(_fromUtf8("comboPoids"))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.addItem(_fromUtf8(""))
+        self.comboBox2.setToolTip(_translate("MainWindow","Select a unit of mass.", None))
+        QtCore.QObject.connect(self.comboBox2, QtCore.SIGNAL("currentIndexChanged(QString)"), self.SIGNAL_comboPoids_Changed)
+
+        self.doubleSpinBox = QtGui.QDoubleSpinBox(self.centralWidget)
+        self.doubleSpinBox.setGeometry(QtCore.QRect(270, 540, 61, 22))
+        self.doubleSpinBox.setSingleStep(0.01)
+        self.doubleSpinBox.setProperty("value", densite)
+        self.doubleSpinBox.setObjectName(_fromUtf8("doubleSpinBox"))
+        self.doubleSpinBox.setToolTip(_translate("MainWindow","Select the volume density in Kg by dm3.", None))
+        self.doubleSpinBox.valueChanged.connect(self.on_doubleSpinBox_valueChanged) #connection doubleSpinBox
+
+        self.label_13 = QtGui.QLabel(self.centralWidget)
+        self.label_13.setGeometry(QtCore.QRect(10, 570, 141, 16))
+        self.label_13.setObjectName(_fromUtf8("label_13"))
+        self.label_13x = QtGui.QLabel(self.centralWidget)
+        self.label_13x.setGeometry(QtCore.QRect(20, 590, 21, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_13x.setFont(font)
+        self.label_13x.setObjectName(_fromUtf8("label_13x"))
+        self.label_13y = QtGui.QLabel(self.centralWidget)
+        self.label_13y.setGeometry(QtCore.QRect(130, 590, 21, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_13y.setFont(font)
+        self.label_13y.setObjectName(_fromUtf8("label_13y"))
+        self.label_13z = QtGui.QLabel(self.centralWidget)
+        self.label_13z.setGeometry(QtCore.QRect(240, 590, 21, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_13z.setFont(font)
+        self.label_13z.setObjectName(_fromUtf8("label_13z"))
+        self.label_14 = QtGui.QLabel(self.centralWidget)
+        self.label_14.setGeometry(QtCore.QRect(10, 640, 141, 16))
+        self.label_14.setObjectName(_fromUtf8("label_14"))
+        self.label_14x = QtGui.QLabel(self.centralWidget)
+        self.label_14x.setGeometry(QtCore.QRect(20, 660, 21, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_14x.setFont(font)
+        self.label_14x.setObjectName(_fromUtf8("label_14x"))
+        self.label_14y = QtGui.QLabel(self.centralWidget)
+        self.label_14y.setGeometry(QtCore.QRect(130, 660, 16, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_14y.setFont(font)
+        self.label_14y.setObjectName(_fromUtf8("label_14y"))
+        self.label_14z = QtGui.QLabel(self.centralWidget)
+        self.label_14z.setGeometry(QtCore.QRect(240, 660, 21, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_14z.setFont(font)
+        self.label_14z.setObjectName(_fromUtf8("label_14z"))
+
+        self.label_15 = QtGui.QLabel(self.centralWidget)
+        self.label_15.setGeometry(QtCore.QRect(10, 710, 131, 16))
+        self.label_15.setObjectName(_fromUtf8("label_15"))
+
+        self.label_16 = QtGui.QLabel(self.centralWidget)
+        self.label_16.setGeometry(QtCore.QRect(10, 740, 101, 16))
+        self.label_16.setObjectName(_fromUtf8("label_16"))
+
+        self.label_16x = QtGui.QLabel(self.centralWidget)
+        self.label_16x.setGeometry(QtCore.QRect(20, 760, 31, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_16x.setFont(font)
+        self.label_16x.setObjectName(_fromUtf8("label_16x"))
+
+        self.label_16y = QtGui.QLabel(self.centralWidget)
+        self.label_16y.setGeometry(QtCore.QRect(110, 760, 21, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_16y.setFont(font)
+        self.label_16y.setObjectName(_fromUtf8("label_16y"))
+
+        self.label_16z = QtGui.QLabel(self.centralWidget)
+        self.label_16z.setGeometry(QtCore.QRect(210, 760, 21, 16))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.label_16z.setFont(font)
+        self.label_16z.setObjectName(_fromUtf8("label_16z"))
+
+        MainWindow.setCentralWidget(self.centralWidget)
+        self.menuBar = QtGui.QMenuBar(MainWindow)
+        self.menuBar.setGeometry(QtCore.QRect(0, 0, 410, 26))
+        self.menuBar.setObjectName(_fromUtf8("menuBar"))
+        MainWindow.setMenuBar(self.menuBar)
+        self.statusBar = QtGui.QStatusBar(MainWindow)
+        self.statusBar.setObjectName(_fromUtf8("statusBar"))
+        MainWindow.setStatusBar(self.statusBar)
+
+        self.retranslateUi(MainWindow)
+        self.comboBox.setCurrentIndex(6)
+        QtCore.QMetaObject.connectSlotsByName(MainWindow)
+
+    def retranslateUi(self, MainWindow):
+        MainWindow.setWindowTitle(_translate("MainWindow", "FCInfo", None))
+        MainWindow.setWindowFlags(PyQt4.QtCore.Qt.WindowStaysOnTopHint)  #
+        MainWindow.setWindowIcon(QtGui.QIcon(path+'FCInfo.png'))         #
+#        MainWindow.setWindowFlags(PyQt4.QtCore.Qt.FramelessWindowHint)  # This function removes the frame and the window button
+        self.label_1.setText(_translate("MainWindow", "Document name", None))
+        self.label_2.setText(_translate("MainWindow", "Name / Type", None))
+#        self.label_2a.setText(_translate("MainWindow", "Object name", None))
+        self.label_3.setText(_translate("MainWindow", "Sub. objet name", None))
+        self.label_4.setText(_translate("MainWindow", "Coordinates mouse click", None))
+        self.label_4x.setText(_translate("MainWindow", "X", None))
+        self.label_4y.setText(_translate("MainWindow", "Y", None))
+        self.label_4z.setText(_translate("MainWindow", "Z", None))
+        self.label_5.setText(_translate("MainWindow", "Lg.", None))
+        #http://fr.wikipedia.org/wiki/Unit%C3%A9s_de_mesure_anglo-saxonnes
+        self.comboBox.setItemText(0, _translate("MainWindow", "km", None))         #km #        = 1000000
+        self.comboBox.setItemText(1, _translate("MainWindow", "hm", None))         #hm #        = 100000
+        self.comboBox.setItemText(2, _translate("MainWindow", "dam", None))        #dam#        = 10000
+        self.comboBox.setItemText(3, _translate("MainWindow", "m", None))          #m  #        = 1000
+        self.comboBox.setItemText(4, _translate("MainWindow", "dm", None))         #dm #        = 100
+        self.comboBox.setItemText(5, _translate("MainWindow", "cm", None))         #cm #        = 10
+        self.comboBox.setItemText(6, _translate("MainWindow", "mm", None))         #mm #        = 1
+        self.comboBox.setItemText(7, _translate("MainWindow", "inch", None))       #in # inch  pouce    = 25.400
+        self.comboBox.setItemText(8, _translate("MainWindow", "link", None))       #lk # link  chaînon  = 201.168
+        self.comboBox.setItemText(9, _translate("MainWindow", "foot", None))       #ft # foot  pied     = 304.800
+        self.comboBox.setItemText(10, _translate("MainWindow", "yard", None))      #yd # yard  verge    = 914.400
+        self.comboBox.setItemText(11, _translate("MainWindow", "perch", None))     #rd # rod ou perch   perche   = 5029.200
+        self.comboBox.setItemText(12, _translate("MainWindow", "chain", None))     #ch # chain chaîne   = 20116.800
+        self.comboBox.setItemText(13, _translate("MainWindow", "furlong", None))   #fur# furlong        = 201168
+        self.comboBox.setItemText(14, _translate("MainWindow", "mile", None))      #mi # mile           = 1609344
+        self.comboBox.setItemText(15, _translate("MainWindow", "league", None))    #lea# league lieue   = 4828032
+        self.comboBox.setItemText(16, _translate("MainWindow", "nautique", None))  #nmi# mile nautique  = 1852000
+        self.label_6.setText(_translate("MainWindow", "Perim. the shape", None))
+        if RowCountTest > RowCount:
+            self.label_7.setText(_translate("MainWindow", "Details ("+ str(compt_E) +") ("+ str(compt_F)+") ("+ str(compt_VF)+")  (!+ "+str(RowCount)+") "+str(RowCountTest), None))
+        else:
+            self.label_7.setText(_translate("MainWindow", "Vertexes and détails ("+ str(compt_E) +") ("+ str(compt_F)+") ("+ str(compt_VF)+")", None))#str(RowCount)
+        self.label_8.setText(_translate("MainWindow", "Inclinations", None))
+        self.pushButton_Ra.setText(_translate("MainWindow", "Degree", None))
+        self.label_8a.setText(_translate("MainWindow", "Plan", None))
+        self.label_8a_2.setText(_translate("MainWindow", "Coordinates", None))
+        self.label_8xy.setText(_translate("MainWindow", "XY", None))
+        self.label_8yz.setText(_translate("MainWindow", "YZ", None))
+        self.label_8zx.setText(_translate("MainWindow", "ZX", None))
+        self.label_9.setText(_translate("MainWindow", "The form surface", None))
+        self.label_10.setText(_translate("MainWindow", "Surface of the face", None))
+        self.label_11.setText(_translate("MainWindow", "Volume of the form", None))
+        self.label_12.setText(_translate("MainWindow", "Po.", None))
+
+        self.comboBox2.setCurrentIndex(5)
+        self.comboBox2.setItemText(0, _translate("MainWindow", "tonne", None))          #t    #   = 1000000
+        self.comboBox2.setItemText(1, _translate("MainWindow", "quintal", None))        #q    #   = 100000
+        self.comboBox2.setItemText(2, _translate("MainWindow", "kilo gram", None))    #kg   #   = 1000
+        self.comboBox2.setItemText(3, _translate("MainWindow", "hecto gram", None))   #hg   #   = 100
+        self.comboBox2.setItemText(4, _translate("MainWindow", "decagram", None))     #dag  #   = 10
+        self.comboBox2.setItemText(5, _translate("MainWindow", "gram", None))         #g    #   = 1
+        self.comboBox2.setItemText(6, _translate("MainWindow", "decigram", None))     #dg   #   = 0.1
+        self.comboBox2.setItemText(7, _translate("MainWindow", "centigram", None))    #cg   #   = 0.01
+        self.comboBox2.setItemText(8, _translate("MainWindow", "milligram", None))    #mg   #   = 0.001
+        self.comboBox2.setItemText(9, _translate("MainWindow", "grain", None))          #gr   #   = 0.06479891 g
+        self.comboBox2.setItemText(10, _translate("MainWindow", "drachm", None))        #dr   #   = 1.7718451953125 g
+        self.comboBox2.setItemText(11, _translate("MainWindow", "once", None))          #oz   #   = 28.3495231250 g
+        self.comboBox2.setItemText(12, _translate("MainWindow", "once troy", None))     #oz t #   = 31.1034768 g  once troy
+        self.comboBox2.setItemText(13, _translate("MainWindow", "livre troy", None))    #lb t #   = 373.2417216 g  livre de troy
+        self.comboBox2.setItemText(14, _translate("MainWindow", "livre av", None))      #lb   #   = 453.59237 g  livre avoirdupois pound
+        self.comboBox2.setItemText(15, _translate("MainWindow", "stone", None))         #st   #   = 6350.29318 g
+        self.comboBox2.setItemText(16, _translate("MainWindow", "quarter", None))       #qtr  #   = 12700.58636 g
+        self.comboBox2.setItemText(17, _translate("MainWindow", "hundredweight", None)) #cwt  #   = 50802.34544 g
+        self.comboBox2.setItemText(18, _translate("MainWindow", "tonneau fr", None))    #     #   = 0.00000102145045965 g
+        self.comboBox2.setItemText(19, _translate("MainWindow", "carat", None))         #cd   #   = 0.2 g
+
+        self.label_13.setText(_translate("MainWindow", "Center of the shape", None))
+        self.label_13x.setText(_translate("MainWindow", "X", None))
+        self.label_13y.setText(_translate("MainWindow", "Y", None))
+        self.label_13z.setText(_translate("MainWindow", "Z", None))
+        self.label_14.setText(_translate("MainWindow", "Center of mass", None))
+        self.label_14x.setText(_translate("MainWindow", "X", None))
+        self.label_14y.setText(_translate("MainWindow", "Y", None))
+        self.label_14z.setText(_translate("MainWindow", "Z", None))
+        self.label_15.setText(_translate("MainWindow", "BoundBox", None))
+        self.label_16.setText(_translate("MainWindow", "Moment of inertia", None))
+        self.label_16x.setText(_translate("MainWindow", "X", None))
+        self.label_16y.setText(_translate("MainWindow", "Y", None))
+        self.label_16z.setText(_translate("MainWindow", "Z", None))
+        self.pushButton_Raf.setText(_translate("MainWindow", "Ref", None))
+        self.pushButton_Lec.setText(_translate("MainWindow", "Read", None))
+        self.pushButton_En.setText(_translate("MainWindow", "Save", None))
+        self.pushButton_Q.setText(_translate("MainWindow", "Exit", None))
+        
+    def SIGNAL_comboPoids_Changed(self,text):
+        global sel
+        global document_ 
+        global object_ 
+        global typeObject
+        global element_ 
+        global position0
+        global position1
+        global position2
+        global longueurObjet
+        global perimetre
+
+        global Plan_xy
+        global Plan_xy_V
+        global Plan_yz
+        global Plan_yz_V
+        global Plan_zx
+        global Plan_zx_V
+
+        global surface
+        global surfaceFace
+        global volume_ 
+        global densite
+        global poids
+        global uniteM
+        global uniteMs
+        global uniteS
+        global uniteSs
+        global uniteV
+        global uniteVs
+        global uniteP
+        global unitePs
+        global uniteAs
+
+        global Vertx
+        global Edges
+        global EdgesLong
+        global Faces
+        global FacesSurf
+        global compt_E
+        global compt_F
+        global compt_VF
+        global placement_
+        global RowCount
+        global RowCountTest
+        global pas
+        text = unicode(text, 'ISO-8859-1').encode('UTF-8')
+        if text == "tonne":          #t  #0.00001        = 1000000
+            uniteP = 0.000001
+            unitePs= "t"
+        elif text == "quintal":      #q  #0.00001        = 100000
+            uniteP = 0.00001
+            unitePs= "q"
+        elif text == "kilo gram":  #kg # 0.001       = 1000
+            uniteP = 0.001
+            unitePs= "kg"
+        elif text == "hecto gram": #hg #  0.01      = 100
+            uniteP = 0.01
+            unitePs= "hg"
+        elif text == "decagram":   #dag#   0.1     = 10
+            uniteP = 0.1
+            unitePs= "dag"
+        elif text == "gram":       #g  #  1      = 1
+            uniteP = 1.00
+            unitePs= "g"
+        elif text == "decigram":   #dg   # = 0.1
+            uniteP = 10
+            unitePs= "dg"
+        elif text == "centigram":  #cg   # = 0.01
+            uniteP = 100
+            unitePs= "cg"
+        elif text == "milligram":  #mg   # = 0.001
+            uniteP = 1000
+            unitePs= "mg"
+        elif text == "grain":        #gr   # = 0.06479891
+            uniteP = 0.06479891
+            unitePs= "gr"
+        elif text == "drachm":       #dr   # = 1.7718451953125
+            uniteP = 0.56438339189006794681850148894339
+            unitePs= "dr"
+        elif text == "once":         #oz   # = 28.3495231250
+            uniteP = 0.035273961949580412915675808215204
+            unitePs= "oz"
+        elif text == "once troy":    #oz t # = once troy   = 31.1034768
+            uniteP = 0.032150746568627980522100346029483
+            unitePs= "oz t"
+        elif text == "livre troy":   #lb t # = 373.2417216 livre de troy (pound)
+            uniteP = 0.0026792288807189983768416955024569
+            unitePs= "lb t"
+        elif text == "livre av":     #lb   # = 453.59237   livre avoirdupois (pound)
+            uniteP = 0.0022046226218487758072297380134503
+            unitePs= "lb"
+        elif text == "stone":        #st   # = 6350.29318  1 stone     = 14 livres
+            uniteP = 0.00015747304441776970051640985810359
+            unitePs= "st"
+        elif text == "quarter":      #qtr  # = 12700.58636
+            uniteP = 0.000078736522208884850258204929051795
+            unitePs= "qtr"
+        elif text == "hundredweight":#cwt  # = 50802.34544
+            uniteP = 0.000019684130552221212564551232262949
+            unitePs= "cwt"
+        elif text == "tonneau fr":   #     # tonneau fr = 0.00000102145045965
+            uniteP = 0.00000102145045965
+            unitePs= "tonneau fr"
+        elif text == "carat":        #cd   # = 0.2
+            uniteP = 5
+            unitePs= "cd"
+        try:
+            poids = ((volume_ * densite) * uniteP) / 1000
+            self.lineEdit_12a.setText(str(poids)+" "+unitePs)
+        except:
+            self.lineEdit_12a.setText("")
+
+    def SIGNAL_comboBox_Changed(self,text):
+        global ui
+        global sel
+        global document_ 
+        global object_ 
+        global typeObject
+        global element_ 
+        global position0
+        global position1
+        global position2
+        global longueurObjet
+        global perimetre
+
+        global Plan_xy
+        global Plan_xy_V
+        global Plan_yz
+        global Plan_yz_V
+        global Plan_zx
+        global Plan_zx_V
+
+        global surface
+        global surfaceFace
+        global volume_ 
+        global densite
+        global poids
+        global uniteM
+        global uniteMs
+        global uniteS
+        global uniteSs
+        global uniteV
+        global uniteVs
+        global uniteP
+        global unitePs
+        global uniteAs
+
+        global boundBoxCenterX
+        global boundBoxCenterY
+        global boundBoxCenterZ
+
+        global boundBoxCenter
+
+        global CenterOfMassX
+        global CenterOfMassY
+        global CenterOfMassZ
+
+        global boundBox_
+        global boundBoxLX
+        global boundBoxLY
+        global boundBoxLZ
+        global boundBox_S
+        
+        global MatrixX1
+        global MatrixY1
+        global MatrixZ1
+        global Matrix_1
+                               
+        global MatrixX2
+        global MatrixY2
+        global MatrixZ2
+        global Matrix_2
+                               
+        global MatrixX3
+        global MatrixY3
+        global MatrixZ3
+        global Matrix_3
+                               
+        global Matrix12
+        global Matrix13
+        global Matrix14
+        global Matrix15
+
+        global Vertx
+        global Edges
+        global EdgesLong
+        global Faces
+        global FacesSurf
+        global FacesCoor
+        global compt_E
+        global compt_F
+        global compt_VF
+        global placement_
+        global RowCount
+        global RowCountTest
+        global pas
+        text = unicode(text, 'ISO-8859-1').encode('UTF-8')
+        if text == "km":        #        = 1000000
+            uniteM = 0.000001
+            uniteMs= "km"
+            uniteS = 0.000000000001
+            uniteSs= u"km²"
+            uniteV = 0.000000000000000001
+            uniteVs= u"km³"
+        elif text == "hm":      #        = 100000
+            uniteM = 0.00001
+            uniteMs= "hm"
+            uniteS = 0.0000000001
+            uniteSs= u"hm²"
+            uniteV = 0.000000000000001
+            uniteVs= u"hm³"
+        elif text == "dam":     #        = 10000
+            uniteM = 0.0001
+            uniteMs= "dam"
+            uniteS = 0.00000001
+            uniteSs= u"dam²"
+            uniteV = 0.000000000001
+            uniteVs= u"dam³"
+        elif text == "m":       #        = 1000
+            uniteM = 0.001
+            uniteMs= "m"
+            uniteS = 0.000001
+            uniteSs= u"m²"
+            uniteV = 0.000000001
+            uniteVs= u"m³"
+        elif text == "dm":      #        = 100
+            uniteM = 0.01
+            uniteMs= "dm"
+            uniteS = 0.0001
+            uniteSs= u"dm²"
+            uniteV = 0.000001
+            uniteVs= u"dm³"
+        elif text == "cm":      #        = 10
+            uniteM = 0.1
+            uniteMs= "cm"
+            uniteS = 0.01
+            uniteSs= u"cm²"
+            uniteV = 0.001
+            uniteVs= u"cm³"
+        elif text == "mm":      #        = 1 ###############################
+            uniteM = 1.0
+            uniteMs= "mm"
+            uniteS = 1.0
+            uniteSs= u"mm²"
+            uniteV = 1.0
+            uniteVs= u"mm³"
+        elif text == "inch":    # inch   = 25.400
+            uniteM = 1.0/25.400
+            uniteMs= "in"
+            uniteS = uniteM**2
+            uniteSs= "sq in"
+            uniteV = uniteM**3
+            uniteVs= u"in³"
+        elif text == "link":    # link   = 201.168
+            uniteM = 1.0/201.168
+            uniteMs= "lk"
+            uniteS = uniteM**2
+            uniteSs= "sq lk"
+            uniteV = uniteM**3
+            uniteVs= u"lk³"
+        elif text == "foot":    # foot   = 304.800
+            uniteM = 1.0/304.800
+            uniteMs= "ft"
+            uniteS = uniteM**2
+            uniteSs= "sq ft"
+            uniteV = uniteM**3
+            uniteVs= u"ft³"
+        elif text == "yard":    # yard   = 914.400
+            uniteM = 1.0/914.400
+            uniteMs= "yd"
+            uniteS = uniteM**2
+            uniteSs= "sq yd"
+            uniteV = uniteM**3
+            uniteVs= u"yd³"
+        elif text == "perch":   #rd # rod   perche    = 5029.200
+            uniteM = 1.0/5029.200
+            uniteMs= "rd"
+            uniteS = uniteM**2
+            uniteSs= "sq rd"
+            uniteV = uniteM**3
+            uniteVs= u"rd³"
+        elif text == "chain":   # chain  = 20116.800
+            uniteM = 1.0/20116.800
+            uniteMs= "ch"
+            uniteS = uniteM**2
+            uniteSs= "sq ch"
+            uniteV = uniteM**3
+            uniteVs= u"ch³"
+        elif text == "furlong": # furlong= 201168
+            uniteM = 1.0/201168
+            uniteMs= "fur"
+            uniteS = uniteM**2
+            uniteSs= "sq fur"
+            uniteV = uniteM**3
+            uniteVs= u"fur³"
+        elif text == "mile":     # mile   = 1609344
+            uniteM = 1.0/1609344
+            uniteMs= "mi"
+            uniteS = uniteM**2
+            uniteSs= "sq mi"
+            uniteV = uniteM**3
+            uniteVs= u"mi³"
+        elif text == "league":   # league = 4828032
+            uniteM = 1.0/4828032
+            uniteMs= "lea"
+            uniteS = uniteM**2
+            uniteSs= "sq lea"
+            uniteV = uniteM**3
+            uniteVs= u"lea³"
+        elif text == "nautique": # nautique = 1852000
+            uniteM = 1.0/1852000
+            uniteMs= "nmi"
+            uniteS = uniteM**2
+            uniteSs= "sq nmi"
+            uniteV = uniteM**3
+            uniteVs= u"nmi³"
+
+        try:
+            self.lineEdit_5.setText(str(float(longueurObjet) * float(uniteM))+" "+uniteMs)
+        except:
+            self.lineEdit_5.setText("")
+        try:
+            self.lineEdit_6.setText(str(float(perimetre) * float(uniteM))+" "+uniteMs)
+        except:
+            self.lineEdit_6.setText("")
+        try:
+            self.lineEdit_9a.setText(str(float(surface) * float(uniteS))+" "+uniteSs)
+        except:
+            self.lineEdit_9a.setText("")
+        try:
+            self.lineEdit_10a.setText(str(float(surfaceFace) * float(uniteS))+" "+uniteSs)
+        except:
+            self.lineEdit_10a.setText("")
+        try:
+            self.lineEdit_11a.setText(str(float(volume_) * float(uniteV))+" "+uniteVs)
+        except:
+            self.lineEdit_11a.setText("")
+        try:
+            boundBox_S = "[X: "+str(boundBoxLX * uniteM)+" "+uniteMs+"] x [Y: "+str(boundBoxLY * uniteM)+" "+uniteMs+"] x [Z: "+str(boundBoxLZ * uniteM)+" "+uniteMs+"]"
+            self.lineEdit_15.setText(boundBox_S)
+        except:
+            self.lineEdit_15.setText("")
+        co = 0
+        li = 0
+        for li in range(RowCount):       # Zero
+            for co in range(8):
+                newitem = QtGui.QTableWidgetItem("")
+                self.tableWidget.setItem( li,co, newitem)
+        co = 0
+        li = 0
+        aa = 0
+        for j in enumerate(Edges):       # Edges
+            newitem = QtGui.QTableWidgetItem(str(j[1]))
+            self.tableWidget.setItem( li,0, newitem)
+            newitem = QtGui.QTableWidgetItem(str(float(EdgesLong[li]) * float(uniteM))+" "+uniteMs)
+            self.tableWidget.setItem( li,1, newitem)
+            co+=1
+            try:
+                for a in range(aa,aa+6):  # Vertexes
+                    co += 1
+                    newitem = QtGui.QTableWidgetItem(str(Vertx[a]))
+                    self.tableWidget.setItem( li,co, newitem)
+            except:
+                None
+            aa += 6
+            co = 0
+            li+= 1
+        li += 1
+        co  = 0        
+        cco = 0        
+        co2 = 0
+        for j in enumerate(Faces):
+            newitem = QtGui.QTableWidgetItem(str(j[1]))
+            self.tableWidget.setItem( li,0, newitem)
+            newitem = QtGui.QTableWidgetItem(str(float(FacesSurf[co]) * float(uniteS))+" "+uniteSs)
+            self.tableWidget.setItem( li,1, newitem)
+            li+= 1
+            for jj in range(cco,len(FacesCoor)):# Faces coordinates
+                cco+=1
+                if FacesCoor[jj] == "T":
+                    break
+                else:
+                    newitem = QtGui.QTableWidgetItem(FacesCoor[jj])
+                    self.tableWidget.setItem( li,co2, newitem)
+                    co2 += 1
+                    if co2 == 3:
+                        li += 1
+                        co2 = 0
+            co += 1
+            li += 1
+
+    # doubleSpinBox_1 poids
+    def on_doubleSpinBox_valueChanged(self,densiteSB):    # SpinBox
+        global volume_ 
+        global uniteP
+        global unitePs
+        global densite
+        global poids
+        densite = densiteSB
+        poids = ((volume_ * densite) * uniteP) / 1000 # base FreeCAD = mm
+        self.lineEdit_12a.setText(str(poids) +" "+ unitePs)
+
+    def on_pushButton_Raf_clicked(self):  # refresh
+        global sel
+        global document_ 
+        global object_ 
+        global typeObject
+        global element_ 
+        global position0
+        global position1
+        global position2
+        global longueurObjet
+        global perimetre
+
+        global Plan_xy
+        global Plan_xy_V
+        global Plan_yz
+        global Plan_yz_V
+        global Plan_zx
+        global Plan_zx_V
+
+        global surface
+        global surfaceFace
+        global volume_ 
+        global densite
+        global poids
+        global uniteM
+        global uniteMs
+        global uniteS
+        global uniteSs
+        global uniteV
+        global uniteVs
+        global uniteP
+        global unitePs
+        global uniteAs
+
+        global boundBoxCenterX
+        global boundBoxCenterY
+        global boundBoxCenterZ
+
+        global boundBoxCenter
+
+        global CenterOfMassX
+        global CenterOfMassY
+        global CenterOfMassZ
+
+        global boundBox_
+        global boundBoxLX
+        global boundBoxLY
+        global boundBoxLZ
+        global boundBox_S
+        
+        global MatrixX1
+        global MatrixY1
+        global MatrixZ1
+        global Matrix_1
+                               
+        global MatrixX2
+        global MatrixY2
+        global MatrixZ2
+        global Matrix_2
+                               
+        global MatrixX3
+        global MatrixY3
+        global MatrixZ3
+        global Matrix_3
+                               
+        global Matrix12
+        global Matrix13
+        global Matrix14
+        global Matrix15
+
+        global Vertx
+        global Edges
+        global EdgesLong
+        global Faces
+        global FacesSurf
+        global FacesCoor
+        global compt_E
+        global compt_F
+        global compt_VF
+        global placement_
+        global RowCount
+        global RowCountTest
+        global path
+        global SaveName
+
+        sel = FreeCADGui.Selection.getSelection()
+        if len(sel)==0:
+            App.Console.PrintMessage("Select an object"+"\n")
+            errorDialog("Select an object")
+        else:
+            affect()
+            self.lineEdit_1.setText(document_)
+            self.lineEdit_2.setText(object_)
+            self.lineEdit_2a.setText(typeObject)
+            self.lineEdit_3.setText(str(element_))
+            self.lineEdit_4x.setText(str(position0))
+            self.lineEdit_4y.setText(str(position1))
+            self.lineEdit_4z.setText(str(position2))
+            self.lineEdit_5.setText(str(longueurObjet * uniteM)+" "+uniteMs)
+            self.comboBox.setCurrentIndex(6)
+            self.lineEdit_6.setText(str(perimetre * uniteM)+" "+uniteMs)
+            self.pushButton_Ra.setText(_translate("MainWindow", "Degree", None))
+            if RowCountTest > RowCount:
+                self.label_7.setText(_translate("MainWindow", "Details ("+ str(compt_E) +") ("+ str(compt_F)+") ("+ str(compt_VF)+")  (!+ "+str(RowCount)+") "+str(RowCountTest), None))
+            else:
+                self.label_7.setText(_translate("MainWindow", "Vertexes and details ("+ str(compt_E) +") ("+ str(compt_F)+") ("+ str(compt_VF)+")", None))#str(RowCount)
+            co = 0
+            li = 0
+            for li in range(RowCount):  # Zero
+                for co in range(8):
+                    newitem = QtGui.QTableWidgetItem("")
+                    self.tableWidget.setItem( li,co, newitem)
+
+            co = 0
+            li = 0
+            aa = 0
+            for j in enumerate(Edges):       # Edges
+                newitem = QtGui.QTableWidgetItem(str(j[1]))
+                self.tableWidget.setItem( li,0, newitem)
+                newitem = QtGui.QTableWidgetItem(str(float(EdgesLong[li]) * float(uniteM))+" "+uniteMs)
+                self.tableWidget.setItem( li,1, newitem)
+                co+=1
+                try:
+                    for a in range(aa,aa+6):  # Vertexes
+                        co += 1
+                        newitem = QtGui.QTableWidgetItem(str(Vertx[a]))
+                        self.tableWidget.setItem( li,co, newitem)
+                except:
+                    None
+                aa += 6
+                co = 0
+                li += 1
+
+            li += 1
+            co  = 0        
+            cco = 0
+            co2 = 0
+            for j in enumerate(Faces):             # Faces
+                newitem = QtGui.QTableWidgetItem(str(j[1]))
+                self.tableWidget.setItem( li,0, newitem)
+                newitem = QtGui.QTableWidgetItem(str(float(FacesSurf[co]) * float(uniteS))+" "+uniteSs)
+                self.tableWidget.setItem( li,1, newitem)
+                li += 1
+                for jj in range(cco,len(FacesCoor)):# Faces coordinates
+                    cco+=1
+                    if FacesCoor[jj] == "T":
+                        break
+                    else:
+                        newitem = QtGui.QTableWidgetItem(FacesCoor[jj])
+                        self.tableWidget.setItem( li,co2, newitem)
+                        co2 += 1
+                        if co2 == 3:
+                            li += 1
+                            co2 = 0
+                co += 1
+                li += 1
+
+            self.lineEdit_8xy.setText(str(Plan_xy)+uniteAs)
+            self.lineEdit_8xya.setText(str(Plan_xy_V))
+            self.lineEdit_8yz.setText(str(Plan_yz)+uniteAs)
+            self.lineEdit_8yza.setText(str(Plan_yz_V))
+            self.lineEdit_8zx.setText(str(Plan_zx)+uniteAs)
+            self.lineEdit_8zxa.setText(str(Plan_zx_V))
+            self.lineEdit_9a.setText(str(surface * uniteS)+" "+uniteSs)
+            self.lineEdit_10a.setText(str(surfaceFace * uniteS)+" "+uniteSs)
+            self.lineEdit_11a.setText(str(volume_ * uniteV)+" "+uniteVs)
+            self.lineEdit_12a.setText(str(poids)+" "+unitePs)
+            self.lineEdit_13x.setText(str(boundBoxCenterX))
+            self.lineEdit_13y.setText(str(boundBoxCenterY))
+            self.lineEdit_13z.setText(str(boundBoxCenterZ))
+            self.lineEdit_14x.setText(str(CenterOfMassX))
+            self.lineEdit_14y.setText(str(CenterOfMassY))
+            self.lineEdit_14z.setText(str(CenterOfMassZ))
+            self.lineEdit_15.setText(boundBox_S)
+            self.lineEdit_16_1x.setText(str(MatrixX1))
+            self.lineEdit_16_1y.setText(str(MatrixY1))
+            self.lineEdit_16_1z.setText(str(MatrixZ1))
+            self.lineEdit_16_01.setText(str(Matrix_1))
+            self.lineEdit_16_2x.setText(str(MatrixX2))
+            self.lineEdit_16_2y.setText(str(MatrixY2))
+            self.lineEdit_16_2z.setText(str(MatrixZ2))
+            self.lineEdit_16_02.setText(str(Matrix_2))
+            self.lineEdit_16_3x.setText(str(MatrixX3))
+            self.lineEdit_16_3y.setText(str(MatrixY3))
+            self.lineEdit_16_3z.setText(str(MatrixZ3))
+            self.lineEdit_16_03.setText(str(Matrix_3))
+            self.lineEdit_16_4x.setText(str(Matrix12))
+            self.lineEdit_16_4y.setText(str(Matrix13))
+            self.lineEdit_16_4z.setText(str(Matrix14))
+            self.lineEdit_16_04.setText(str(Matrix15))
+##################################################################################################################
+    def on_pushButton_Lec_clicked(self):          # lecture
+        OpenName = ""
+        OpenName = QFileDialog.getOpenFileName(None,QString.fromLocal8Bit("Read a txt file"),path,"*.FCInfo *.txt")
+        try:
+            if OpenName != "":
+                App.Console.PrintMessage("Reading the file "+OpenName+"\n")
+                fileFCInfoW = ""
+                file = open(OpenName, "rb")
+                reader = csv.reader(file)
+                Count0  = 0
+                ligne   = 0
+                colonne = 0
+                try:                         #
+                    for row in reader:
+                        ligne += 1           #
+                        for field in row:
+                           Count0 += 1       #
+                        if Count0 > colonne:
+                            colonne = Count0
+                        Count0 = 0
+                finally:
+                    file.close()
+
+                self.table = QTableWidget( ligne , colonne)
+                self.table.setWindowTitle(_translate("MainWindow", "FCInfo Patience reading the file", None))
+                self.table.resize(700, 500)
+                self.table.setWindowModality(QtCore.Qt.NonModal)
+                self.table.setWindowFlags(PyQt4.QtCore.Qt.WindowStaysOnTopHint)    #
+                self.table.setWindowIcon(QtGui.QIcon(path+'FCInfoSpreadsheet.png'))#
+                self.table.show()
+
+                file = open(OpenName, "rb")
+                reader = csv.reader(file)
+                lignes = ligne
+                colonne = 0
+                ligne   = 0
+                try:
+                    for row in reader:
+                        for field in row:
+                           newitem = QtGui.QTableWidgetItem(str(field))
+                           self.table.setItem(ligne, colonne, newitem)
+                           colonne += 1
+                        ligne += 1
+                        colonne = 0
+                        self.table.setWindowTitle(_translate("MainWindow", "FCInfo Patience reading the file "+str(ligne)+"/"+str(lignes), None))
+                finally:
+                    file.close()
+                   
+                self.table.setWindowTitle(_translate("MainWindow", "FCInfo Tableau " + OpenName, None))
+        except:
+            App.Console.PrintMessage("Error in reading the file "+OpenName+"\n")
+            errorDialog(u"Error in reading the file "+OpenName)
+##################################################################################################################
+        
+    def on_pushButton_En_clicked(self,text):      # registation
+        global sel
+        global document_ 
+        global object_ 
+        global typeObject
+        global element_ 
+        global position0
+        global position1
+        global position2
+        global longueurObjet
+        global perimetre
+
+        global Plan_xy
+        global Plan_xy_V
+        global Plan_yz
+        global Plan_yz_V
+        global Plan_zx
+        global Plan_zx_V
+
+        global surface
+        global surfaceFace
+        global volume_ 
+        global densite
+        global poids
+        global uniteM
+        global uniteMs
+        global uniteS
+        global uniteSs
+        global uniteV
+        global uniteVs
+        global uniteP
+        global unitePs
+        global uniteAs
+
+        global boundBoxCenterX
+        global boundBoxCenterY
+        global boundBoxCenterZ
+
+        global boundBoxCenter
+
+        global CenterOfMassX
+        global CenterOfMassY
+        global CenterOfMassZ
+
+        global boundBox_
+        global boundBoxLX
+        global boundBoxLY
+        global boundBoxLZ
+        global boundBox_S
+        
+        global MatrixX1
+        global MatrixY1
+        global MatrixZ1
+        global Matrix_1
+                               
+        global MatrixX2
+        global MatrixY2
+        global MatrixZ2
+        global Matrix_2
+                               
+        global MatrixX3
+        global MatrixY3
+        global MatrixZ3
+        global Matrix_3
+                               
+        global Matrix12
+        global Matrix13
+        global Matrix14
+        global Matrix15
+
+        global Vertx
+        global Edges
+        global EdgesLong
+        global Faces
+        global FacesSurf
+        global FacesCoor
+        global compt_E
+        global compt_F
+        global compt_VF
+        global placement_
+        global RowCount
+        global RowCountTest
+        global path
+        global SaveName
+
+        SaveName = ""
+        SaveName = QFileDialog.getSaveFileName(None,QString.fromLocal8Bit("Save a file FCInfo"),path,"*.FCInfo")
+        if SaveName == "":
+            App.Console.PrintMessage("Process aborted"+"\n")
+            errorDialog("Process aborted")
+        else:
+            App.Console.PrintMessage("Registration of "+SaveName+"\n")
+            try:
+                f = open(SaveName, 'w') # write
+                f.write(iso8859("Info on the element\n"))
+                f.write(iso8859("___________________\n"))
+                f.write(iso8859(dateUs()+" "+heure()+"\n\n"))
+                f.write(iso8859("Name of the document      :, "+document_+"\n"))
+                f.write(iso8859("Name of the object        :, "+object_+"\n"))
+                f.write(iso8859("Object type               :, "+typeObject+"\n"))
+                f.write(iso8859("Name of the element       :, "+str(element_)+"\n"))
+                f.write(iso8859("Mouse coordinates         :,  X:, "+str(position0)+",  Y:, "+str(position1)+",  Z:, "+str(position2)+"\n"))
+                f.write(iso8859("Length of the object      :, "+str(longueurObjet * uniteM)+", "+uniteMs+"\n"))
+                f.write(iso8859("Perimeter of the shape    :, "+str(perimetre * uniteM)+", "+uniteMs+"\n\n"))
+                f.write(iso8859(u"Vertexes and détails      :, Edges :,"+ str(compt_E) +", Faces :,"+ str(compt_F)+", Vertexes faces :,"+ str(compt_VF)+", Total :,"+str(RowCountTest)+"\n\n"))
+                co = 0
+                aa = 0
+                for j in enumerate(Edges):
+                    f.write(str(j[1])+" , "+iso8859(str(float(EdgesLong[co]) * float(uniteM))+" , "+uniteMs+","))#"\n"
+                    co+=1
+                    for a in range(aa,aa+6):
+                         try:
+#                             f.write(str(Vertx[a][0:3])+" , "+str(Vertx[a][4:len(Vertx[a])])+" , ")
+                             chaine = str(Vertx[a]).split(":")
+                             f.write(chaine[0]+" , "+chaine[1]+" , ")
+                         except:
+                             None
+                    aa += 6
+                    f.write("\n")
+                f.write("\n")
+                co  = 0        
+                cco = 0
+                co2 = 0
+                for j in enumerate(Faces):
+                    f.write(str(j[1])+" , "+iso8859(str(float(FacesSurf[co]) * float(uniteS))+" , "+uniteSs+"\n"))
+                    co += 1
+
+                    for jj in range(cco,len(FacesCoor)):# Faces coordinates
+                        cco+=1
+                        if FacesCoor[jj] == "T":
+                            f.write("\n")
+                            break
+                        else:
+#                            f.write(FacesCoor[jj][0:3]+" , "+FacesCoor[jj][4:len(FacesCoor[jj])]+" , ")
+                            chaine = str(FacesCoor[jj]).split(":")
+                            f.write(chaine[0]+" , "+chaine[1]+" , ")
+                            co2 += 1
+                            if co2 == 3:
+                                f.write("\n")
+                                co2 = 0
+
+                f.write("\n")
+                f.write(iso8859("Plan                     :, XY:, " + self.lineEdit_8xy.text() + "," +" coordinates:, " + str(Plan_xy_V)+"\n"))
+                f.write(iso8859("Plan                     :, YZ:, " + self.lineEdit_8yz.text() + "," +" coordinates:, " + str(Plan_yz_V)+"\n"))
+                f.write(iso8859("Plan                     :, ZX:, " + self.lineEdit_8zx.text() + "," +" coordinates:, " + str(Plan_zx_V)+"\n\n"))
+                f.write("The form surface         :, "+iso8859(str(surface * uniteS)+" , "+uniteSs+"\n"))
+                f.write("Surface of the face      :, "+iso8859(str(surfaceFace * uniteS)+" , "+uniteSs+"\n\n"))
+                f.write("Volume of the form       :, "+iso8859(str(volume_ * uniteV)+" , "+uniteVs+"\n"))
+                f.write("Weight                   :, "+iso8859(str(poids)+" , "+unitePs+", Density:, "+str(densite)+"\n\n"))
+                f.write("Center of the shape      :, X:, "+iso8859(str(boundBoxCenterX)+", Y:, "+str(boundBoxCenterY)+", Z:, "+str(boundBoxCenterZ)+"\n"))
+                f.write("Center of mass           :, X:, "+iso8859(str(CenterOfMassX)  +", Y:, "+str(CenterOfMassY)  +", Z:, "+str(CenterOfMassZ)+"\n"))
+                f.write("BoundBox                 :, X:, "+iso8859(str(boundBoxLX * uniteM)+","+uniteMs+", Y:, "+str(boundBoxLY * uniteM)+","+uniteMs+", Z:, "+str(boundBoxLZ * uniteM)+","+uniteMs+"\n\n"))
+                f.write("Matrix of inertia        :, X:, "+iso8859(str(MatrixX1)+", Y:, "+str(MatrixY1)+", Z:, "+str(MatrixZ1)+", :, "+str(Matrix_1)+"\n"))
+                f.write("                         :, X:, "+iso8859(str(MatrixX2)+", Y:, "+str(MatrixY2)+", Z:, "+str(MatrixZ2)+", :, "+str(Matrix_2)+"\n"))
+                f.write("                         :, X:, "+iso8859(str(MatrixX3)+", Y:, "+str(MatrixY3)+", Z:, "+str(MatrixZ3)+", :, "+str(Matrix_3)+"\n"))
+                f.write("                         :, X:, "+iso8859(str(Matrix12)+", Y:, "+str(Matrix13)+", Z:, "+str(Matrix14)+", :, "+str(Matrix15)+"\n"))
+                f.close()
+            except:
+                App.Console.PrintMessage("Error writing file ",SaveName+"\n")
+                errorDialog("Error writing file "+SaveName)
+
+    def on_pushButton_Ra_clicked(self):    # clicked() pressed(), released() Bouton radian/degrés
+        global uniteAs
+        Plan_xy2 = 0.0
+        Plan_yz2 = 0.0
+        Plan_zx2 = 0.0
+        if self.pushButton_Ra.text() == "Degree":
+            uniteAs = ""
+            self.pushButton_Ra.setText(_translate("MainWindow", "DegMinSec", None))
+            self.lineEdit_8xy.setText(degMinSec(Plan_xy))
+            self.lineEdit_8yz.setText(degMinSec(Plan_yz))
+            self.lineEdit_8zx.setText(degMinSec(Plan_zx))
+        elif self.pushButton_Ra.text() == "DegMinSec":
+            uniteAs = " rad"
+            self.pushButton_Ra.setText(_translate("MainWindow", "Radian", None))
+            Plan_xy2 = radians(Plan_xy)
+            self.lineEdit_8xy.setText(str(Plan_xy2)+uniteAs)
+            Plan_yz2 = radians(Plan_yz)
+            self.lineEdit_8yz.setText(str(Plan_yz2)+uniteAs)
+            Plan_zx2 = radians(Plan_zx)
+            self.lineEdit_8zx.setText(str(Plan_zx2)+uniteAs)
+        elif self.pushButton_Ra.text() == "Radian":
+            uniteAs = " gon"
+            self.pushButton_Ra.setText(_translate("MainWindow", "Grade", None))
+            Plan_xy2 = angleGrade(Plan_xy)
+            self.lineEdit_8xy.setText(str(Plan_xy2)+uniteAs) #angleGrade
+            Plan_yz2 = angleGrade(Plan_yz)
+            self.lineEdit_8yz.setText(str(Plan_yz2)+uniteAs)
+            Plan_zx2 = angleGrade(Plan_zx)
+            self.lineEdit_8zx.setText(str(Plan_zx2)+uniteAs)
+        elif self.pushButton_Ra.text() == "Grade":
+            uniteAs = u"°"
+            try:
+                self.pushButton_Ra.setText(_translate("MainWindow", "Degree", None))
+                self.lineEdit_8xy.setText(str(Plan_xy)+uniteAs)
+                self.lineEdit_8yz.setText(str(Plan_yz)+uniteAs)
+                self.lineEdit_8zx.setText(str(Plan_zx)+uniteAs)
+            except:
+                None
+
+    def on_pushButton02_clicked(self):                   # Exit button
+        App.Console.PrintMessage("End FCInfo\r\n")
+        FreeCADGui.Selection.removeObserver(s)           # Uninstalls the resident function
+        self.window.hide()
+    def removeSelection(self,document, object, element): # Delete the selected object
+        App.Console.PrintMessage("removeSelection"+"\n")
+    def setSelection(self,document):                     # Selection inComboView
+        App.Console.PrintMessage("setSelection"+"\n")
+    def clearSelection(self,document):                   # If click on the screen, clear the selection
+        global sel
+        App.Console.PrintMessage("clearSelection"+"\n")  # If click on another object, clear the previous
+        sel = "" 
+
+#########################################################################################################################
+class SelObserver:
+    def addSelection(self,document, object, element, position):  # Sélection
+        global sel
+        global document_
+        global object_
+        global element_
+        global position0
+        global position1
+        global position2
+
+        sel = FreeCADGui.Selection.getSelection()   
+
+        document_ = document
+        object_   = object
+        element_  = element
+
+        position0 = position[0]
+        position1 = position[1]
+        position2 = position[2]
+        
+        if len(sel)==0:
+            App.Console.PrintMessage("Select an object"+"\n")
+            errorDialog("Select an object")
+        else:
+            ff = ui
+            ff.on_pushButton_Raf_clicked()
+        #####################################################################################
+
+sel = FreeCADGui.Selection.getSelection()   
+
+s=SelObserver()
+FreeCADGui.Selection.addObserver(s)          # install the function mode resident
+
+MainWindow = QtGui.QMainWindow()
+ui = Ui_MainWindow(MainWindow)
+MainWindow.show()
+

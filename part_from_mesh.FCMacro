@@ -1,0 +1,9 @@
+import Mesh, Part
+
+for object in FreeCADGui.Selection.getSelection():
+  guiObject = FreeCADGui.ActiveDocument.getObject(object.Name)
+  mesh = FreeCAD.ActiveDocument.getObject(object.Name).Mesh
+  shape = Part.Shape()
+  shape.makeShapeFromMesh(mesh.Topology, 0.05) # the second arg is the tolerance for sewing
+  solid = Part.makeSolid(shape)
+  Part.show(solid)

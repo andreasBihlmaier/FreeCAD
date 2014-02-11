@@ -1,0 +1,53 @@
+from __future__ import print_function
+import Mesh
+
+#fusion = App.activeDocument().addObject("Part::MultiFuse","VertexNormals")
+
+def setLine(lineName, vertex, normal, lineLength):
+  #print('setLine(lineName=' + lineName + ', vertex=' + str(vertex) + ', normal=' + str(normal) + ', lineLength=' + str(lineLength) + ')')
+  line = App.ActiveDocument.getObject(lineName)
+  normalizedNormal = normal.normalize()
+  normalStartpoint = vertex
+  normalEndpoint = vertex + normalizedNormal.multiply(lineLength)
+  line.X1 = normalStartpoint.x
+  line.Y1 = normalStartpoint.y
+  line.Z1 = normalStartpoint.z
+  line.X2 = normalEndpoint.x
+  line.Y2 = normalEndpoint.y
+  line.Z2 = normalEndpoint.z
+
+
+meshFilename = '/tmp/freecad_mesh.obj'
+mesh = Mesh.Mesh(meshFilename)
+Mesh.show(mesh)
+inputFile = open(meshFilename, 'r');
+vertices = []
+normals = []
+for line in inputFile:
+  line = line.strip()
+  if len(line) == 0 or line.startswith('#'):
+    continue
+  splitters = line.split()
+  if splitters[0] == 'v':
+    vertex = App.Vector(float(splitters[1]), float(splitters[2]), float(splitters[3]))
+    vertices.append(vertex)
+  elif splitters[0] == 'vn':
+    normal = App.Vector(float(splitters[1]), float(splitters[2]), float(splitters[3]))
+    normals.append(normal)
+
+#print("vertices=", vertices)
+#print("normals=", normals)
+
+lineLength = 5
+sparsifyFactor = 1 # Only show every sparsifyFactor-th normal
+for normalIndex in range(len(normals)):
+  if normalIndex % sparsifyFactor != 0:
+    continue
+  lineName = "normal%03dLine" % normalIndex
+  App.ActiveDocument.addObject("Part::Line", lineName)
+  normal = normals[normalIndex]
+  vertex = vertices[normalIndex]
+  setLine(lineName, vertex, normal, lineLength)
+  #fusion.Shapes.append(App.ActiveDocument.getObject(lineName))
+
+App.ActiveDocument.recompute()

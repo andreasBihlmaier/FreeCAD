@@ -1,0 +1,26 @@
+scaling = 0.001
+tessellationParam = 1 # surface deviation: smaller number = more triangles
+
+import Mesh
+faces = []
+for object in FreeCADGui.Selection.getSelection():
+  shape = FreeCAD.ActiveDocument.getObject(object.Name).Shape
+  # TODO use MeshPart.meshFromShape() instead?
+  triangles = shape.tessellate(tessellationParam)
+  for tri in triangles[1]:
+      face = []
+      for i in range(3):
+          vindex = tri[i]
+          face.append(triangles[0][vindex])
+      faces.append(face)
+m = Mesh.Mesh(faces)
+#scaleMatrix = FreeCAD.Base.Matrix()
+#scaleMatrix.unity()
+#scaleMatrix.scale(scaling, scaling, scaling)
+#m.transform(scaleMatrix)
+Mesh.show(m)
+
+
+#import importDAE
+#meshObject = FreeCAD.ActiveDocument.getObject("Mesh")
+#importDAE.export([meshObject], "/tmp/mesh.dae")

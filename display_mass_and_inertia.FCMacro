@@ -1,0 +1,21 @@
+for object in FreeCADGui.Selection.getSelection():
+  App.Console.PrintMessage("\n%s:\n" % object.Name)
+  guiObject = FreeCADGui.ActiveDocument.getObject(object.Name)
+  shape = FreeCAD.ActiveDocument.getObject(object.Name).Shape
+  guiObject.Transparency = 70
+  for solidIdx in range(len(shape.Solids)):
+    App.Console.PrintMessage("Solid %d\n" % solidIdx)
+    solid = shape.Solids[solidIdx]
+    App.Console.PrintMessage("  Volume: %s\n" % solid.Volume)
+    App.Console.PrintMessage("  Mass: %s\n" % solid.Mass)
+    App.Console.PrintMessage("  CenterOfMass: %s\n" % solid.CenterOfMass)
+    App.Console.PrintMessage("  MatrixOfInertia: %s\n" % solid.MatrixOfInertia)
+    App.Console.PrintMessage("\n")
+
+    sphereName = "CenterOfMass%d" % solidIdx
+    sphereObject = App.ActiveDocument.addObject("Part::Sphere", sphereName)
+    App.ActiveDocument.recompute()
+    sphereGuiObject = FreeCADGui.ActiveDocument.getObject(sphereName)
+    sphereGuiObject.ShapeColor = (1.00,0.00,0.00)
+    sphereObject.Placement = App.Placement(solid.CenterOfMass,App.Rotation(0,0,0,1))
+  App.Console.PrintMessage("\n")

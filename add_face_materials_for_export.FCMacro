@@ -1,0 +1,38 @@
+class SelectionObserver:
+  def __init__(self, meshFaceColors):
+    self.meshFaceColors = meshFaceColors
+  def addSelection(self, document, object, element, position):
+    self.document = document
+    self.object = object
+    self.element = element
+    self.position = position
+    self.sel = FreeCADGui.Selection.getSelection()
+    self.fullElementName = "%s_%s" % (self.object, self.element)
+    self.diffuseProperty = "%s_Diffuse" % (self.fullElementName)
+    #App.Console.PrintMessage("Selected: %s %s %s %s" % (self.document, self.object, self.element, self.position))
+
+    try:
+      self.meshFaceColors.getPropertyByName(self.diffuseProperty)
+    except:
+      self.meshFaceColors.addProperty('App::PropertyColor', self.diffuseProperty)
+
+
+  def getSelectedObject(self):
+    return App.getDocument(self.document).getObject(self.object)
+
+  def getSelectedElement(self):
+    return self.getSelectedObject().Shape.getElement(self.element)
+
+
+
+if not FreeCAD.ActiveDocument.getObject('MeshFaceColors'):
+  meshFaceColors = FreeCAD.ActiveDocument.addObject('App::FeaturePython', 'MeshFaceColors')
+  meshFaceColors.addProperty('App::PropertyColor', 'default')
+  meshFaceColors.default = (0.8, 0.8, 0.8, 1.0)
+
+meshFaceColors = FreeCAD.ActiveDocument.getObject('MeshFaceColors')
+assert meshFaceColors
+
+
+selectionObserver = SelectionObserver(meshFaceColors)
+FreeCADGui.Selection.addObserver(selectionObserver)
