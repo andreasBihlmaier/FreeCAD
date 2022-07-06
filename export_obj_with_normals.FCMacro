@@ -1,7 +1,8 @@
 import Mesh
 import math
 import sys
-from PyQt4 import QtGui, QtCore
+from PySide import QtGui, QtCore
+from collections import defaultdict
 
 hugeNumber = 1e6
 
@@ -24,8 +25,8 @@ def myPointDistance(point1, point2):
 
 
 def maxOccurences(occurences):
-  #App.Console.PrintMessage('Occurences: %s\n' % str(occurences))
-  keys = occurences.keys()
+  App.Console.PrintMessage('Occurences: %s\n' % str(occurences))
+  keysList = tuple(list(occurences.keys()))
   if len(occurences) > 3:
     App.Console.PrintMessage('More than three occurences. Aborting.\n')
     return None
@@ -33,15 +34,15 @@ def maxOccurences(occurences):
     App.Console.PrintMessage('Zero occurences. You might want to increase Epsilon. Aborting.\n')
     return None
   elif len(occurences) <= 2:
-    return occurences[keys[0]]
-  elif occurences[keys[0]] == occurences[keys[1]]:
-    return occurences[keys[0]]
-  elif occurences[keys[0]] == occurences[keys[2]]:
-    return occurences[keys[0]]
-  elif occurences[keys[1]] == occurences[keys[2]]:
-    return occurences[keys[1]]
+    return occurences[keysList[0]]
+  elif occurences[keysList[0]] == occurences[keysList[1]]:
+    return occurences[keysList[0]]
+  elif occurences[keysList[0]] == occurences[keysList[2]]:
+    return occurences[keysList[0]]
+  elif occurences[keysList[1]] == occurences[keysList[2]]:
+    return occurences[keysList[1]]
   else: # no maximum, return one of them
-    return occurences[keys[0]]
+    return occurences[keysList[0]]
 
 
 def facets2triangles(facets):
@@ -65,7 +66,7 @@ def export_obj():
   App.Console.PrintMessage('export_obj()\n')
   vertices = []
   normals = []
-  faceGroups = {}
+  faceGroups = defaultdict(list)
   if len(FreeCADGui.Selection.getSelection()) != 1:
     App.Console.PrintMessage('More than one part selected. Aborting.\n')
     return
@@ -75,7 +76,7 @@ def export_obj():
   if object.TypeId.startswith('Part'):
     shapeObject = object
     shape = shapeObject.Shape
-    triangles = shape.tessellate(maxSurfaceDeviation)
+    triangles = shape.tessellate(float(maxSurfaceDeviation))
     App.Console.PrintMessage('Tessellating resulted in mesh with %d triangles\n' % len(triangles[1]))
   elif object.TypeId.startswith('Mesh'):
     mesh = object.Mesh
@@ -117,9 +118,9 @@ def export_obj():
         surfacePos = surface.value(u, v)
         dist = myPointDistance(surfacePos, vertex)
         #App.Console.PrintMessage('vertex=', vertex, ' surface.Position=', surface.Position, ' surfacePos=', surfacePos, ' dist=', dist
-        if dist < epsilon:
+        if dist < float(epsilon):
           normalNotNormalized = face.normalAt(u, v)
-          if normalNotNormalized.Length < epsilon:
+          if normalNotNormalized.Length < float(epsilon):
             continue
           normal = normalNotNormalized.normalize()
           angleDelta = facetNormal.getAngle(normal)
@@ -138,14 +139,14 @@ def export_obj():
   #App.Console.PrintMessage('vertices(%d)=' % len(vertices), vertices
   #App.Console.PrintMessage('normals(%d)=' % len(normals), normals
   #App.Console.PrintMessage('faceGroups(%d)=' % len(faceGroups), faceGroups
-  
-  
-  
+
+
   # write mesh as Wavefront .obj and .mtl format
   def addMaterial(materialFile, colorName, color):
-    print >> materialFile, 'newmtl %s' % colorName
-    print >> materialFile, 'Kd %f %f %f' % color[0:3]
-  
+    print('newmtl %s' % colorName, file=materialFile)
+    print('Kd %f %f %f' % color[0:3], file=materialFile)
+
+
   meshFaceColors = FreeCAD.ActiveDocument.getObject('MeshFaceColors')
   colors = {}
   if meshFaceColors:
@@ -161,24 +162,27 @@ def export_obj():
           colors[color] = colorName
           addMaterial(materialFile, colorName, color)
     materialFile.close()
-  
-  
+
+
   meshFile = open(meshFileName, 'w')
   if meshFaceColors:
-    print >> meshFile, 'mtllib %s' % materialFileName
+    print('mtllib %s' % materialFileName, file=meshFile)
   
-  print >> meshFile, '# %d vertices' % len(vertices)
+  print('# %d vertices' % len(vertices), file=meshFile)
+
   for vertex in vertices:
-    print >> meshFile, 'v %f %f %f' % (vertex.x, vertex.y, vertex.z)
-  
-  print >> meshFile, '\n# %d normals' % len(normals)
+    print('v %f %f %f' % (vertex.x, vertex.y, vertex.z), file=meshFile)
+   
+  print('\n# %d normals' % len(normals), file=meshFile)
+
   for normal in normals:
-    print >> meshFile, 'vn %f %f %f' % (normal.x, normal.y, normal.z)
-  
+    print('vn %f %f %f' % (normal.x, normal.y, normal.z), file=meshFile)
+
   for faceGroupIndex in range(len(faceGroups)):
+    App.Console.PrintMessage('%s' % faceGroups[faceGroupIndex])
     faceGroup = faceGroups[faceGroupIndex]
-    print >> meshFile, '\n# face group %d: %d faces' % (faceGroupIndex, len(faceGroup))
-    print >> meshFile, 'g group%d' % faceGroupIndex
+    print('\n# face group %d: %d faces' % (faceGroupIndex, len(faceGroup)), file=meshFile)
+    print('g group%d' % faceGroupIndex, file=meshFile)
     if meshFaceColors:
       color = ()
       try:
@@ -186,22 +190,23 @@ def export_obj():
         color = meshFaceColors.getPropertyByName(colorPropertyName)
       except:
         color = meshFaceColors.getPropertyByName('default')
-      print >> meshFile, 'usemtl %s' % colors[color]
+
+      print('usemtl %s' % colors[color], file=meshFile)
     for face in faceGroup:
       startingFromOneVertexIndices = tuple(idx + 1 for idx in face)
-      print >> meshFile, 'f %d//%d %d//%d %d//%d' % sum(zip(startingFromOneVertexIndices,startingFromOneVertexIndices), ())
-  
+      print('f %d//%d %d//%d %d//%d' % sum(zip(startingFromOneVertexIndices,startingFromOneVertexIndices),()),file=meshFile)
+
   meshFile.close()
   faces_count = sum([len(faceGroups[faceKey]) for faceKey in faceGroups])
   App.Console.PrintMessage('Export finished vertices=%d normals=%d faces=%d faceGroups=%d\n' % (len(vertices), len(normals), faces_count, len(faceGroups)))
 
 
-@QtCore.pyqtSlot()
+@QtCore.Slot()
 def gui_export_obj():
   App.Console.PrintMessage('gui_export_obj()\n')
   global epsilon, maxSurfaceDeviation, meshFileName, materialFileName
-  epsilon = epsilonEdit.text().toDouble()[0]
-  maxSurfaceDeviation = deviationEdit.text().toDouble()[0]
+  epsilon = float(epsilonEdit.text())
+  maxSurfaceDeviation = float(deviationEdit.text())
   meshFileName = filenameEdit.text()
   materialFileName = meshFileName[:].replace('.obj', '.mtl')
 
@@ -209,7 +214,7 @@ def gui_export_obj():
 
 
 def show_gui():
-  app = QtGui.qApp
+  app = QtGui.QApplication
   mw = app.activeWindow()
   
   global dock, epsilonEdit, deviationEdit, filenameEdit
